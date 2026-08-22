@@ -1,0 +1,6 @@
+fastapi
+uvicorn
+pydantic
+openbb
+langchain-ollama
+langchain-core
