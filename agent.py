@@ -1,3 +1,7 @@
+import os
+from dotenv import load_dotenv
+load_dotenv()
+
 from langchain_ollama import ChatOllama
 from langchain_core.tools import tool
 
@@ -72,7 +76,7 @@ tool_map = {
 
 
 llm = ChatOllama(
-    model="llama3.2:3b",
+    model=os.getenv("OLLAMA_MODEL", "llama3.2:3b"),
     temperature=0
 )
 

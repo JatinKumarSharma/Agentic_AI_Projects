@@ -50,6 +50,13 @@ def home():
         "docs": "/docs"
     }
 
+@app.get("/health")
+def health():
+    return {
+        "status": "healthy",
+        "service": "financial-analyst-api",
+        "version": "1.0.0"
+    }
 
 @app.get("/stock/search/{symbol}")
 def stock_search(symbol: str):
@@ -127,18 +134,6 @@ def stock_consensus(symbol: str):
 def company_news(symbol: str):
     try:
         result = get_company_news(symbol)
-        return result
-    except Exception as e:
-        raise HTTPException(
-            status_code=500,
-            detail=str(e)
-        )
-
-
-@app.get("/news")
-def world_news():
-    try:
-        result = get_world_news()
         return result
     except Exception as e:
         raise HTTPException(
