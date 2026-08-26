@@ -1,8 +1,10 @@
 import os
 from dotenv import load_dotenv
+
 load_dotenv()
 
 from langchain_ollama import ChatOllama
+from langchain_openai import ChatOpenAI
 from langchain_core.tools import tool
 
 from financial_tools import (
@@ -75,10 +77,27 @@ tool_map = {
 }
 
 
-llm = ChatOllama(
-    model=os.getenv("OLLAMA_MODEL", "llama3.2:3b"),
-    temperature=0
-)
+LLM_PROVIDER = os.getenv("LLM_PROVIDER", "ollama")
+
+if LLM_PROVIDER == "ollama":
+
+    llm = ChatOllama(
+        model=os.getenv("OLLAMA_MODEL", "llama3.2:3b"),
+        temperature=0
+    )
+
+elif LLM_PROVIDER == "openai":
+
+    llm = ChatOpenAI(
+        model=os.getenv("OPENAI_MODEL", "gpt-4o-mini"),
+        temperature=0
+    )
+
+else:
+
+    raise ValueError(
+        f"Unsupported LLM_PROVIDER: {LLM_PROVIDER}"
+    )
 
 llm_with_tools = llm.bind_tools(tools)
 

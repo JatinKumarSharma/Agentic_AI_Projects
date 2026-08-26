@@ -1,6 +1,8 @@
 fastapi
 uvicorn
 pydantic
+python-dotenv
 openbb
-langchain-ollama
 langchain-core
+langchain-ollama
+langchain-openai
