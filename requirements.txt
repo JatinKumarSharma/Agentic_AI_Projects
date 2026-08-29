@@ -6,3 +6,4 @@ openbb
 langchain-core
 langchain-ollama
 langchain-openai
+langchain-google-genai

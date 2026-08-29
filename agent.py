@@ -5,7 +5,14 @@ load_dotenv()
 
 from langchain_ollama import ChatOllama
 from langchain_openai import ChatOpenAI
+from langchain_google_genai import ChatGoogleGenerativeAI
 from langchain_core.tools import tool
+
+from langchain_core.messages import (
+    SystemMessage,
+    HumanMessage,
+    ToolMessage,
+)
 
 from financial_tools import (
     search_stock,
@@ -93,6 +100,13 @@ elif LLM_PROVIDER == "openai":
         temperature=0
     )
 
+elif LLM_PROVIDER == "google":
+
+    llm = ChatGoogleGenerativeAI(
+        model=os.getenv("GOOGLE_MODEL", "gemini-2.5-flash"),
+        temperature=0
+    )
+
 else:
 
     raise ValueError(
@@ -128,6 +142,32 @@ When a tool returns an error, use the tool's error_type and message to
 explain the limitation accurately.
 """
 
+def normalize_response(content):
+
+    if isinstance(content, str):
+        return content
+
+    if isinstance(content, list):
+
+        text_parts = []
+
+        for item in content:
+
+            if isinstance(item, dict):
+                text = item.get("text")
+
+                if text:
+                    text_parts.append(text)
+
+            elif hasattr(item, "text"):
+                text_parts.append(item.text)
+
+            else:
+                text_parts.append(str(item))
+
+        return "\n".join(text_parts)
+
+    return str(content)
 
 def execute(query: str):
     """
@@ -135,9 +175,9 @@ def execute(query: str):
     """
 
     messages = [
-        ("system", SYSTEM_PROMPT),
-        ("human", query),
-    ]
+    SystemMessage(content=SYSTEM_PROMPT),
+    HumanMessage(content=query),
+]
 
     max_iterations = 8
 
@@ -149,7 +189,7 @@ def execute(query: str):
 
         # The model has finished answering.
         if not response.tool_calls:
-            return response.content
+            return normalize_response(response.content)
 
         # Execute every tool requested by the model.
         for tool_call in response.tool_calls:
@@ -172,11 +212,10 @@ def execute(query: str):
                     }
 
             messages.append(
-                {
-                    "role": "tool",
-                    "content": str(tool_result),
-                    "tool_call_id": tool_call["id"],
-                }
-            )
+    ToolMessage(
+        content=str(tool_result),
+        tool_call_id=tool_call["id"],
+    )
+)
 
     return "The agent reached the maximum number of tool iterations."
