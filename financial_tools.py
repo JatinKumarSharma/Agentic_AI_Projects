@@ -1,4 +1,12 @@
+import os
+
 from openbb import obb
+
+
+FMP_API_KEY = os.getenv("FMP_API_KEY")
+
+if FMP_API_KEY:
+    obb.user.credentials.fmp_api_key = FMP_API_KEY
 
 
 def search_stock(symbol: str):
