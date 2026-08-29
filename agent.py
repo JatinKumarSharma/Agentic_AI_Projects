@@ -5,6 +5,7 @@ load_dotenv()
 
 from langchain_ollama import ChatOllama
 from langchain_openai import ChatOpenAI
+from langchain_groq import ChatGroq
 from langchain_google_genai import ChatGoogleGenerativeAI
 from langchain_core.tools import tool
 
@@ -104,6 +105,16 @@ elif LLM_PROVIDER == "google":
 
     llm = ChatGoogleGenerativeAI(
         model=os.getenv("GOOGLE_MODEL", "gemini-2.5-flash"),
+        temperature=0
+    )
+
+elif LLM_PROVIDER == "groq":
+
+    llm = ChatGroq(
+        model=os.getenv(
+            "GROQ_MODEL",
+            "openai/gpt-oss-20b"
+        ),
         temperature=0
     )
 
