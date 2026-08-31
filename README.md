@@ -1,101 +1,173 @@
-# Agentic Financial Analyst API
+# Agentic Financial Research API
 
-An agentic financial analysis API built with **FastAPI, LangChain,
-Ollama, and OpenBB**. It allows users to ask natural-language financial
-questions and uses financial-data tools to retrieve information, perform
-multi-step analysis, and return a concise answer.
+A tool-calling AI agent that performs multi-step financial research using
+real-time financial data.
 
-## Project Overview
+Built with **FastAPI, LangChain, OpenBB, and configurable LLM providers**,
+the agent can decide which financial tools to use, execute multiple tool
+calls sequentially, and synthesize the results into a final answer.
 
-The project demonstrates an agentic financial research workflow:
+## Live Demo
 
-``` text
-User Question
-     ↓
-FastAPI /ask
-     ↓
-LLM Agent (Ollama)
-     ↓
-Tool Selection
-     ↓
-OpenBB Financial Tools
-     ↓
-Financial Data
-     ↓
-Reasoning over Results
-     ↓
-Final Answer
+🔗 **Live API:** https://financial-analyst-api-fw98.onrender.com
+
+💻 **GitHub Repository:** https://github.com/JatinKumarSharma/Agentic_AI_Projects
+
+## Deployment
+
+The API is deployed as a cloud web service on Render.
+
+The deployment uses environment variables for configuration and keeps
+sensitive API credentials outside the source code.
+
+Example environment configuration:
+
+```env
+LLM_PROVIDER=groq
+GROQ_MODEL=openai/gpt-oss-20b
+GROQ_API_KEY=your_api_key
+
+FMP_API_KEY=your_api_key
 ```
 
-For example, a question such as:
+## What Makes It Agentic?
+
+Unlike a traditional API endpoint that executes a predefined sequence of
+operations, this system uses an LLM-driven agent loop.
+
+The agent can:
+
+- Decide whether external financial data is required.
+- Select the appropriate financial tool.
+- Execute one or more tools dynamically.
+- Use previous tool results to determine the next action.
+- Continue the workflow until enough information is available.
+- Return a final answer grounded in retrieved data.
+
+### Example Multi-Step Query
 
 > Find TSLA peers, determine which peer has the highest market cap, and
 > then get the consensus price target for that company.
 
-can require multiple tool calls. The agent can retrieve TSLA peers,
-compare their market capitalizations, identify the highest-market-cap
-peer, and then attempt to retrieve its consensus price target.
+To answer this, the agent may perform the following workflow:
+
+```text
+User Question
+      |
+      v
+LLM analyzes the task
+      |
+      v
+Get TSLA peers
+      |
+      v
+Analyze peer market capitalizations
+      |
+      v
+Identify the largest peer
+      |
+      v
+Retrieve consensus price target
+      |
+      v
+Generate final answer
+```
 
 ## Architecture
 
-``` text
-                    ┌─────────────────────┐
-                    │        User         │
-                    └──────────┬──────────┘
-                               │
-                               ▼
-                    ┌─────────────────────┐
-                    │      FastAPI        │
-                    │       /ask          │
-                    └──────────┬──────────┘
-                               │
-                               ▼
-                    ┌─────────────────────┐
-                    │   Agent / LLM       │
-                    │    Ollama           │
-                    │   llama3.2:3b       │
-                    └──────────┬──────────┘
-                               │
-                    ┌──────────┴──────────┐
-                    │                     │
-                    ▼                     ▼
-             Tool Selection        Multi-step Reasoning
-                    │                     │
-                    └──────────┬──────────┘
-                               ▼
-                    ┌─────────────────────┐
-                    │  Financial Tools    │
-                    └──────────┬──────────┘
-                               ▼
-                    ┌─────────────────────┐
-                    │       OpenBB        │
-                    └──────────┬──────────┘
-                               ▼
-                    Financial Data Providers
+```text
+                          USER
+                           |
+                           v
+                    +-------------+
+                    |   FastAPI   |
+                    | POST /ask   |
+                    +------+------+
+                           |
+                           v
+                +---------------------+
+                |   Agent Execution   |
+                |        Loop         |
+                +----------+----------+
+                           |
+                           v
+                +---------------------+
+                |       LLM Layer     |
+                |---------------------|
+                | Groq                |
+                | Google Gemini       |
+                | Local Ollama        |
+                +----------+----------+
+                           |
+                     Tool Calls?
+                    /           \
+                  Yes            No
+                   |              |
+                   v              v
+        +------------------+  Final Answer
+        | Financial Tools  |
+        +--------+---------+
+                 |
+                 v
+             OpenBB
+                 |
+                 v
+      Financial Data Providers
+                 |
+                 v
+            Tool Results
+                 |
+                 +--------------------+
+                                      |
+                                      v
+                              Back to Agent Loop
+```
+
+## Supported LLM Providers
+
+The agent uses a configuration-driven provider abstraction that allows the
+underlying LLM to be switched without changing the agent execution logic.
+
+| Provider | Example Model | Deployment Mode |
+|---|---|---|
+| Groq | `openai/gpt-oss-20b` | Cloud |
+| Google Gemini | `gemini-2.5-flash` | Cloud |
+| Ollama | `llama3.2:3b` | Local |
+
+Select the active provider through environment configuration:
+
+```env
+LLM_PROVIDER=groq
 ```
 
 ## Tech Stack
 
-  Component         Technology
-  ----------------- --------------
-  Language          Python
-  API Framework     FastAPI
-  Agent Framework   LangChain
-  LLM Runtime       Ollama
-  LLM Model         Llama 3.2 3B
-  Financial Data    OpenBB
-  Data Processing   Pandas
-  Validation        Pydantic
-  API Server        Uvicorn
+  | Component       | Technology                  |
+| --------------- | --------------------------- |
+| Language        | Python                      |
+| API Framework   | FastAPI                     |
+| Agent Framework | LangChain                   |
+| LLM Providers   | Groq, Google Gemini, Ollama |
+| Financial Data  | OpenBB                      |
+| Data Processing | Pandas                      |
+| Validation      | Pydantic                    |
+| API Server      | Uvicorn                     |
+| Deployment      | Render                      |
 
 ## Project Structure
 
-``` text
-Agentic_AI_Projects/
+```text
+financial-api/
+├── assets/
+│   ├── deployed-api.png
+│   ├── multi-step-query.png
+│   └── simple-query.png
+├── .env.example
 ├── .gitignore
 ├── agent.py
 ├── financial_tools.py
 ├── main.py
+├── README.md
 └── requirements.txt
 ```
 
@@ -129,7 +201,6 @@ Contains the Python dependencies required to run the project.
   GET      `/stock/{symbol}/performance`   Retrieve price performance
   GET      `/stock/{symbol}/consensus`     Retrieve analyst consensus
   GET      `/news/{symbol}`                Retrieve company news
-  GET      `/news`                         World-news endpoint
 
 ## Example Request
 
@@ -198,61 +269,73 @@ Find TSLA peers, determine which peer has the highest market cap,
 and then get the consensus price target for that company.
 ```
 
-## Running Locally
+## Example Agent Workflows
 
+### Simple Financial Query
+
+The agent can answer financial questions by selecting the appropriate
+financial-data tool and grounding its response in retrieved data.
+
+![Simple Financial Query](assets/simple-query.png)
+
+### Multi-Step Agentic Research
+
+For complex queries, the agent can perform dependent tool calls where the
+result of one step informs the next action.
+
+Example:
+
+> Find TSLA peers, determine which peer has the highest market cap, and
+> then get the consensus price target for that company.
+
+![Multi-Step Agentic Research](assets/multi-step-query.png)
+
+### Deployed API
+
+The application is deployed as a cloud service and exposes the agent
+through a REST API.
+
+![Deployed API](assets/deployed-api.png)
+
+## Running Locally
 ### 1. Clone the repository
 
 ``` bash
 git clone https://github.com/JatinKumarSharma/Agentic_AI_Projects.git
 cd Agentic_AI_Projects
 ```
-
 ### 2. Create a virtual environment
 
 Windows:
 
 ``` bash
 python -m venv .venv
-.venv\Scriptsctivate
+.venv\Scripts\activate
 ```
-
+macOS/Linux:
+```bash
+python -m venv .venv
+source .venv/bin/activate
+```
 ### 3. Install dependencies
 
 ``` bash
 pip install -r requirements.txt
 ```
+### 4. Configure environment variables
 
-### 4. Start Ollama
+Create a `.env` file based on .env.example.
+Example using Groq:
 
-The current agent uses:
+```env
+LLM_PROVIDER=groq
 
-``` text
-llama3.2:3b
+GROQ_API_KEY=your_api_key
+GROQ_MODEL=openai/gpt-oss-20b
+
+FMP_API_KEY=your_api_key
 ```
-
-Check installed models:
-
-``` bash
-ollama list
-```
-
-If required:
-
-``` bash
-ollama pull llama3.2:3b
-```
-
-Start the Ollama server if it is not already running:
-
-``` bash
-ollama serve
-```
-
-Keep this terminal running.
-
-### 5. Start FastAPI
-
-In another terminal:
+### 5. Start the application
 
 ``` bash
 uvicorn main:app --reload
@@ -264,8 +347,19 @@ Open:
 http://127.0.0.1:8000/docs
 ```
 
-The interactive Swagger documentation can be used to test all available
-endpoints.
+The interactive Swagger documentation can be used to test all available endpoints.
+
+### Provider abstraction
+
+Our agent code doesn't fundamentally change when switching:
+
+```text
+Groq
+  │
+Google Gemini ───> Same Agent Loop ───> Same Tools
+  │
+Ollama
+```
 
 ## Design Principles
 
@@ -304,40 +398,47 @@ Do not fabricate data
 
 ## Current Limitations
 
-This is an MVP/portfolio project. Known limitations include:
+This project is an MVP and has several known limitations:
 
--   Financial-data availability depends on the configured OpenBB
-    providers.
--   Some provider endpoints may require subscriptions or additional
-    configuration.
--   Company-news retrieval may return an empty provider response for
-    some requests.
--   The world-news endpoint currently requires a `get_world_news`
-    implementation.
--   Local Ollama inference means response speed depends on local
-    hardware.
--   The project focuses on financial research and data retrieval rather
-    than investment advice.
--   Persistent conversation memory and portfolio management are not
-    currently implemented.
+- Financial-data availability depends on the configured OpenBB data providers.
+- Some financial-data endpoints require provider subscriptions or additional API configuration.
+- LLM availability and rate limits depend on the configured provider and API quota.
+- Company-news retrieval may return limited or empty results depending on provider availability.
+- Local Ollama inference performance depends on the available hardware.
+- The agent currently uses a bounded tool-execution loop and does not include advanced planning or persistent state management.
+- Persistent conversation memory and portfolio management are not currently implemented.
+- The project focuses on financial research and data retrieval rather than personalized investment advice.
 
 ## Project Status
 
-**MVP --- Functional**
+**Deployed MVP — Functional**
 
-The core workflow has been tested with:
+The project currently supports:
 
--   FastAPI API requests
--   OpenBB financial-data tools
--   Stock lookup
--   Company profiles
--   Peer comparison
--   Stock quotes
--   Performance data
--   Analyst consensus data
--   Multi-step agentic questions
--   Local Ollama inference
--   Tool/provider error handling
+- Cloud deployment on Render
+- Tool-calling LLM agent
+- Multi-step reasoning workflows
+- Dynamic tool selection
+- Multiple LLM providers
+- Groq inference
+- Google Gemini support
+- Local Ollama support
+- OpenBB financial data integration
+- Provider-aware error handling
+- Environment-based configuration
+- REST API interface
+
+### Tested Workflows
+
+The following workflows have been successfully tested:
+
+- Single-step financial queries
+- Multi-tool financial research queries
+- Sequential tool execution
+- Peer comparison using market capitalization
+- Provider switching through environment configuration
+- Graceful handling of unavailable provider data
+- Deployed API requests through the Render service
 
 ## Disclaimer
 
