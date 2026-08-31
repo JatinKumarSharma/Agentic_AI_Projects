@@ -8,9 +8,10 @@ __pycache__/
 # Ruff cache
 .ruff_cache/
 
-# Environment variables / secrets
+# Environment variables
 .env
 .env.*
+!.env.example
 
 # VS Code
 .vscode/
