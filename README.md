@@ -1,7 +1,7 @@
-# Agentic Financial Research API
+# Agentic Financial Research Assistant 
 
-A tool-calling AI agent that performs multi-step financial research using
-real-time financial data.
+An agentic AI application that performs multi-step financial research using 
+LLM-driven tool selection and financial data tools.
 
 Built with **FastAPI, LangChain, OpenBB, and configurable LLM providers**,
 the agent can decide which financial tools to use, execute multiple tool
