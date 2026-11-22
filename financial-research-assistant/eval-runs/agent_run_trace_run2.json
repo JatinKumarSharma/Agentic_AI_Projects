@@ -1,0 +1,25 @@
+{
+  "question": "Give me the company profile and analyst consensus price target for the ticker ZZZZ.",
+  "provider_trace": true,
+  "trace": [
+    {
+      "step": 1,
+      "model_text": "",
+      "tool_calls": [
+        {
+          "tool": "search_stock_tool",
+          "args": {
+            "symbol": "ZZZZ"
+          },
+          "result": "id='06b03138-2710-7dc7-8000-2234b47e8d0d' results=[] provider='sec' warnings=None chart=None extra={'metadata': Metadata\n\narguments: {'provider_choices': {'provider': 'sec'}, 'standard_params': {'query': 'ZZZZ'}, 'extra_params': {}}\nduration: 1996042200\nroute: /equity/search\ntimestamp: 2026-11-22 21:38:32.445677}"
+        }
+      ]
+    },
+    {
+      "step": 2,
+      "model_text": "I searched for a company with the ticker **ZZZZ** and did not find any matching results in the database. Because the ticker does not correspond to a listed company, I cannot provide a company profile or an analyst consensus price target. If you have a different ticker or additional details, please let me know and I’ll look it up for you.",
+      "tool_calls": []
+    }
+  ],
+  "final_answer": "I searched for a company with the ticker **ZZZZ** and did not find any matching results in the database. Because the ticker does not correspond to a listed company, I cannot provide a company profile or an analyst consensus price target. If you have a different ticker or additional details, please let me know and I’ll look it up for you."
+}
