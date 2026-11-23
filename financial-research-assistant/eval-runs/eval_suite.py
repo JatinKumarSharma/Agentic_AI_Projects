@@ -22,6 +22,7 @@ load_dotenv(PROJECT_ROOT / ".env")
 
 from langchain_core.messages import SystemMessage, HumanMessage, ToolMessage
 from agent import llm_with_tools, tool_map, normalize_response
+from guardrails import apply_guardrails
 
 VERSION = sys.argv[1] if len(sys.argv) > 1 else "v0"
 
@@ -149,6 +150,11 @@ explain the limitation accurately.
 """,
 }
 
+# v4 is an architectural intervention, not a prompt change. The prompt is
+# identical to v2; the difference is the deterministic guardrail layer applied
+# after the model answers.
+PROMPTS["v4"] = PROMPTS["v2"]
+
 # Fixed suite — identical across all versions.
 QUESTIONS = {
     "q1_quote_peers": "What is Apple's (AAPL) current quote and who are its main peers?",
@@ -163,6 +169,7 @@ def capture(prompt, question):
     messages = [SystemMessage(content=prompt), HumanMessage(content=question)]
     trace = []
     final_answer = ""
+    tool_results = []
     for step in range(8):
         response = llm_with_tools.invoke(messages)
         messages.append(response)
@@ -179,6 +186,7 @@ def capture(prompt, question):
                     result = {"error": str(exc)}
             entry["result"] = str(result)
             tool_calls.append(entry)
+            tool_results.append(result)
             messages.append(ToolMessage(content=str(result), tool_call_id=tc["id"]))
         trace.append({
             "step": step + 1,
@@ -187,6 +195,8 @@ def capture(prompt, question):
         })
         if not response.tool_calls:
             final_answer = normalize_response(response.content)
+            if VERSION == "v4":
+                final_answer = apply_guardrails(final_answer, tool_results)
             break
     return {"question": question, "trace": trace, "final_answer": final_answer}
 

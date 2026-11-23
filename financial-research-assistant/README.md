@@ -166,11 +166,13 @@ Agentic_AI_Projects/
 │   ├── eval-runs/                      ← evaluation evidence
 │   │   ├── EVAL_LOG.md
 │   │   ├── eval_suite.py
-│   │   ├── eval_suite_v0.json … v3.json
+│   │   ├── eval_suite_v0.json … v4.json
+│   │   ├── guardrails_test.py
 │   │   └── agent_baseline.py
 │   ├── .env.example
 │   ├── agent.py
 │   ├── financial_tools.py
+│   ├── guardrails.py                   ← deterministic checks
 │   ├── main.py
 │   ├── README.md
 │   └── requirements.txt
@@ -401,22 +403,32 @@ This project is scored with the **5-D Evaluation Framework** — Hallucination,
 Factuality, Originality, Helpfulness and Harmlessness, scored independently
 on a 1–5 scale with no aggregate.
 
-A fixed five-question suite was run across four prompt iterations. The first
-run exposed a real error: the quote tool returned `change_percent: -0.019043`
-(−1.9043%) but the agent answered **−0.62%**. A targeted rule fixed it, two
-later interventions produced no gain, one produced a regression and was
-reverted. Full traces, prompts, per-question scores and the change log are in
+A fixed five-question suite was run across four prompt iterations plus one
+guardrail iteration. The first run exposed a real error: the quote tool
+returned `change_percent: -0.019043` (−1.9043%) but the agent answered
+**−0.62%**. A targeted rule fixed it, two later prompt interventions produced
+no gain, one produced a regression and was reverted.
+
+The fifth iteration changed the prompt back to v2 and added deterministic
+guardrails in [`guardrails.py`](guardrails.py): the provider's fractional
+percentage is normalized in code, a mismatched percentage is corrected, and a
+bare refusal is upgraded with a reason and a data-grounded alternative. The
+refusal behaviour changed for the first time, but a new unguarded claim
+regressed Factuality — that trade-off is recorded rather than hidden. Full
+traces, scores and the change log are in
 [`eval-runs/EVAL_LOG.md`](eval-runs/EVAL_LOG.md).
 
 Reproduce any iteration from this folder:
 
 ```bash
 pip install -r requirements.txt
-python eval-runs/eval_suite.py v0   # or v1, v2, v3
+python eval-runs/eval_suite.py v0   # or v1, v2, v3, v4
+python eval-runs/guardrails_test.py # deterministic guardrail checks, no API calls
 ```
 
-> Requires valid `GROQ_API_KEY` and `FMP_API_KEY` in a `.env` file. The harness
-> makes real provider calls and writes a trace JSON into this folder.
+> Requires valid `GROQ_API_KEY` and `FMP_API_KEY` in a `.env` file for the
+> suite. The harness makes real provider calls and writes a trace JSON into
+> this folder. The guardrail tests are fully offline.
 
 ## Error Handling
 

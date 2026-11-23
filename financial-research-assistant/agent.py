@@ -24,6 +24,7 @@ from financial_tools import (
     get_consensus,
     get_company_news,
 )
+from guardrails import apply_guardrails
 
 
 @tool
@@ -198,6 +199,7 @@ def execute(query: str):
 ]
 
     max_iterations = 8
+    tool_results = []
 
     for _ in range(max_iterations):
 
@@ -205,9 +207,11 @@ def execute(query: str):
 
         messages.append(response)
 
-        # The model has finished answering.
+        # The model has finished answering. Deterministic guardrails run on
+        # the final text regardless of what the model was instructed to do.
         if not response.tool_calls:
-            return normalize_response(response.content)
+            answer = normalize_response(response.content)
+            return apply_guardrails(answer, tool_results)
 
         # Execute every tool requested by the model.
         for tool_call in response.tool_calls:
@@ -228,6 +232,8 @@ def execute(query: str):
                     tool_result = {
                         "error": str(e)
                     }
+
+            tool_results.append(tool_result)
 
             messages.append(
     ToolMessage(

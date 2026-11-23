@@ -2,6 +2,8 @@ import os
 
 from openbb import obb
 
+from guardrails import normalize_quote_record
+
 
 FMP_API_KEY = os.getenv("FMP_API_KEY")
 
@@ -43,12 +45,18 @@ def get_peers(symbol: str):
 
 
 def get_quote(symbol: str):
-    """Get the latest stock quote."""
+    """Get the latest stock quote.
+
+    change_percent is normalized in code before the model sees it — the
+    provider returns a fraction, which previously led to two different wrong
+    percentages in the final answers.
+    """
 
     result = obb.equity.price.quote(symbol=symbol)
 
     try:
-        return result.to_df().to_dict(orient="records")
+        records = result.to_df().to_dict(orient="records")
+        return [normalize_quote_record(record) for record in records]
     except Exception:
         return str(result)
 
