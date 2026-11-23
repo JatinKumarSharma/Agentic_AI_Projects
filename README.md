@@ -20,6 +20,14 @@ evaluation evidence stay isolated.
   `eval-runs/`, with a `EVAL_LOG.md` recording what changed and what moved.
 - Evidence belongs with the system it evaluates — not in a separate report.
 
+## Deployment compatibility
+
+The root `main.py` and `requirements.txt` are thin deployment shims only. They
+exist so the existing Render service — which builds from the repository root
+and runs `uvicorn main:app` — keeps working after the restructure. All real
+code and dependencies live in `financial-research-assistant/`. There is no
+need to change Render's Root Directory setting.
+
 ## Repository
 
 https://github.com/JatinKumarSharma/Agentic_AI_Projects

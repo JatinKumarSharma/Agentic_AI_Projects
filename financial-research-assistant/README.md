@@ -178,9 +178,10 @@ Agentic_AI_Projects/
     └── README.md                       ← reserved space
 ```
 
-> **Deployment note:** Render's Root Directory must be set to
-> `financial-research-assistant` because this project no longer sits at the
-> repository root.
+> **Deployment note:** the repository root contains thin `main.py` and
+> `requirements.txt` shims that load this project, so Render can keep building
+> from the repo root with `uvicorn main:app`. No Root Directory change is
+> needed. All application logic stays in this folder.
 
 ### `main.py`
 
