@@ -1,10 +1,13 @@
-fastapi
-uvicorn
-pydantic
-python-dotenv
-openbb
-langchain-core
-langchain-ollama
-langchain-openai
-langchain-google-genai
-langchain-groq
+# Pinned to the versions used for the recorded evaluation runs.
+# In particular, openbb 5.x pulls in the CLI, MCP server, devtools and charting
+# stacks and exceeds Render's 512 MiB free-tier limit at startup.
+fastapi==0.136.3
+uvicorn==0.40.0
+pydantic==2.13.4
+python-dotenv==1.2.2
+openbb==4.7.2
+langchain-core==1.6.1
+langchain-ollama==1.1.0
+langchain-openai==1.6.0
+langchain-google-genai==4.3.7
+langchain-groq==1.1.3

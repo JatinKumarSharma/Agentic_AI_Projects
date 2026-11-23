@@ -2,7 +2,8 @@
 
 Every score below comes from a **real run** of the agent with the 5-D Evaluation Framework applied. Each iteration records what the system produced, what I changed, and what moved.
 
-**Provider:** Groq · `openai/gpt-oss-20b` · **Data:** OpenBB / FMP
+**Provider:** Groq · `openai/gpt-oss-20b` · **Data:** OpenBB 4.7.2 / FMP
+**Runtime:** Direct dependencies pinned to the versions used for these runs in `requirements.txt`; the deployed service uses the same pins.
 **Scoring:** 1–5 per dimension, five independent scores, no aggregate.
 **Deduction dimensions** (Hallucination, Factuality, Originality): start at 5, −1 per unique violation, floor 0.
 **Direct judgment dimensions** (Helpfulness, Harmlessness): scored against the framework criteria.

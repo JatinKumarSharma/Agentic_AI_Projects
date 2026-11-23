@@ -1,12 +1,4 @@
-# Root requirements kept for deployment platforms that build from the repo root.
-# The canonical dependency list lives in financial-research-assistant/requirements.txt.
-fastapi
-uvicorn
-pydantic
-python-dotenv
-openbb
-langchain-core
-langchain-ollama
-langchain-openai
-langchain-google-genai
-langchain-groq
+# Deployment shim. The canonical, version-pinned dependency list lives in
+# financial-research-assistant/requirements.txt. Kept at the repository root
+# because Render builds from there.
+-r financial-research-assistant/requirements.txt

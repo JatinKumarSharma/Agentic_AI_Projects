@@ -28,6 +28,11 @@ and runs `uvicorn main:app` — keeps working after the restructure. All real
 code and dependencies live in `financial-research-assistant/`. There is no
 need to change Render's Root Directory setting.
 
+Dependencies are pinned to the versions used for the recorded evaluation runs.
+Leaving `openbb` unpinned resolves to 5.x, which installs the CLI, MCP server,
+devtools and charting stacks and exceeds Render's 512 MiB free-tier memory at
+startup. `render.yaml` records the exact build and start commands.
+
 ## Repository
 
 https://github.com/JatinKumarSharma/Agentic_AI_Projects

@@ -1,0 +1,12 @@
+# Render blueprint for the financial research API.
+# The service builds from the repository root. Root main.py and requirements.txt
+# are thin shims that load the real code from financial-research-assistant/.
+services:
+  - type: web
+    name: financial-analyst-api
+    runtime: python
+    plan: free
+    branch: main
+    buildCommand: pip install -r requirements.txt
+    startCommand: uvicorn main:app --host 0.0.0.0 --port $PORT
+    healthCheckPath: /health
