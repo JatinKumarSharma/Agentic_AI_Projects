@@ -1,3 +1,6 @@
+import os
+import sys
+
 from pydantic import BaseModel
 from agent import execute
 
@@ -55,7 +58,17 @@ def health():
     return {
         "status": "healthy",
         "service": "financial-analyst-api",
-        "version": "1.0.0"
+        "version": "1.1.0"
+    }
+
+
+@app.get("/version")
+def version():
+    """Diagnostic: which commit and code path Render is actually running."""
+    return {
+        "service_version": "1.1.0",
+        "git_commit": os.getenv("RENDER_GIT_COMMIT"),
+        "guardrails_loaded": "guardrails" in sys.modules,
     }
 
 @app.get("/stock/search/{symbol}")
