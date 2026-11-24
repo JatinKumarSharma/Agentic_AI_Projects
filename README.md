@@ -8,7 +8,7 @@ evaluation evidence stay isolated.
 
 | Folder | Status | What it is |
 |---|---|---|
-| [`financial-research-assistant/`](financial-research-assistant/) | Live | Agentic financial research system with a minimal web UI (`web/`). Compatible with Groq, OpenAI, Gemini and Ollama models. |
+| [`financial-research-assistant/`](financial-research-assistant/) | Live | Agentic financial research system with a themed web UI: https://financial-research-assistant-web.vercel.app. Compatible with Groq, OpenAI, Gemini and Ollama models. |
 | [`adaptive-customer-voice-interviewer/`](adaptive-customer-voice-interviewer/) | Reserved | Adaptive customer voice interview agent. Space reserved; code to be added. |
 
 ## Conventions

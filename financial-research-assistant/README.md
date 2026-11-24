@@ -9,7 +9,9 @@ calls sequentially, and synthesize the results into a final answer.
 
 ## Live Demo
 
-🖥️ **Web interface:** source in [`web/`](web/README.md) — Vite + React + Tailwind,
+🖥️ **Live web interface:** https://financial-research-assistant-web.vercel.app
+
+📁 **Web interface source:** [`web/`](web/README.md) — Vite + React + Tailwind,
 themed to match the portfolio.
 
 🔗 **Live assistant:** https://financial-analyst-api-fw98.onrender.com
