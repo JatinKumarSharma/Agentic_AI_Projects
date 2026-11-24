@@ -1,0 +1,179 @@
+@import url("https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap");
+
+@import "tailwindcss";
+
+/* Portfolio palette with a slight cool tint for a focused chat surface. */
+@theme {
+  --font-display: "Plus Jakarta Sans", Arial, sans-serif;
+  --font-body: Arial, Helvetica, sans-serif;
+
+  --color-background: #000508;
+  --color-ambient: #0b1214;
+  --color-grid: #182024;
+
+  --color-surface: #0b1114;
+  --color-surface-elevated: #131b1e;
+
+  --color-foreground: #f5f3ed;
+  --color-muted: #a7aaa6;
+  --color-subtle: #6f7672;
+
+  --color-accent: #5e8c2e;
+  --color-accent-light: #79a848;
+  --color-accent-dark: #42651e;
+
+  --color-info: #7fa6ad;
+  --color-border: #25302a;
+}
+
+@layer base {
+  * {
+    box-sizing: border-box;
+  }
+
+  html,
+  body,
+  #root {
+    min-height: 100%;
+  }
+
+  html {
+    background: #000508;
+  }
+
+  body {
+    margin: 0;
+    background: #000508;
+    color: var(--color-foreground);
+    font-family: Arial, Helvetica, sans-serif;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+
+  h1,
+  h2,
+  h3 {
+    font-family: var(--font-display);
+    font-weight: 500;
+  }
+
+  ::selection {
+    background: #5e8c2e;
+    color: #ffffff;
+  }
+
+  textarea,
+  button {
+    font: inherit;
+  }
+}
+
+.dot-grid {
+  background-image: radial-gradient(
+    circle,
+    rgba(24, 32, 36, 0.85) 1px,
+    transparent 1px
+  );
+  background-size: 24px 24px;
+}
+
+.ambient-glow {
+  background: radial-gradient(
+    ellipse at top center,
+    rgba(11, 18, 20, 0.95) 0%,
+    rgba(11, 18, 20, 0.45) 40%,
+    rgba(0, 5, 8, 0) 78%
+  );
+}
+
+.message-body p {
+  margin: 0 0 0.6rem;
+}
+
+.message-body p:last-child {
+  margin-bottom: 0;
+}
+
+.message-body strong {
+  color: var(--color-foreground);
+  font-weight: 600;
+}
+
+.message-body em {
+  color: var(--color-subtle);
+  font-size: 12px;
+}
+
+.message-body code {
+  border: 1px solid var(--color-border);
+  border-radius: 4px;
+  background: var(--color-background);
+  padding: 1px 5px;
+  color: var(--color-info);
+  font-size: 12px;
+}
+
+.message-body h3 {
+  margin: 0.9rem 0 0.45rem;
+  color: var(--color-foreground);
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.message-body hr {
+  margin: 1rem 0;
+  border: 0;
+  border-top: 1px solid var(--color-border);
+}
+
+.message-body .table-wrap {
+  margin: 0.6rem 0 0.85rem;
+  overflow-x: auto;
+  border: 1px solid var(--color-border);
+  border-radius: 10px;
+}
+
+.message-body table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 12px;
+}
+
+.message-body th,
+.message-body td {
+  padding: 7px 10px;
+  text-align: left;
+  white-space: nowrap;
+}
+
+.message-body th {
+  background: var(--color-surface-elevated);
+  color: var(--color-muted);
+  font-weight: 600;
+}
+
+.message-body tbody tr {
+  border-top: 1px solid var(--color-border);
+}
+
+.message-body ul {
+  margin: 0.35rem 0 0;
+  padding-left: 1.1rem;
+}
+
+.message-body li {
+  margin-bottom: 0.25rem;
+}
+
+::-webkit-scrollbar {
+  width: 7px;
+}
+
+::-webkit-scrollbar-track {
+  background: #000508;
+}
+
+::-webkit-scrollbar-thumb {
+  background: #25302a;
+  border-radius: 8px;
+}

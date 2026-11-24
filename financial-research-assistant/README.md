@@ -9,16 +9,24 @@ calls sequentially, and synthesize the results into a final answer.
 
 ## Live Demo
 
-🔗 **Live API:** https://financial-analyst-api-fw98.onrender.com
+🖥️ **Web interface:** source in [`web/`](web/README.md) — Vite + React + Tailwind,
+themed to match the portfolio.
+
+🔗 **Live assistant:** https://financial-analyst-api-fw98.onrender.com
 
 💻 **Project folder:** https://github.com/JatinKumarSharma/Agentic_AI_Projects/tree/main/financial-research-assistant
 
 ## Deployment
 
-The API is deployed as a cloud web service on Render.
+The assistant is deployed as a cloud web service on Render. It is an agentic AI
+system compatible with Groq, OpenAI, Google Gemini and Ollama models — not a
+single fixed model or a thin data endpoint.
+
+Browser access is restricted through the `FRONTEND_ORIGINS` environment
+variable (comma-separated). Localhost `5173` is allowed by default.
 
 The deployment uses environment variables for configuration and keeps
-sensitive API credentials outside the source code.
+sensitive provider credentials outside the source code.
 
 Example environment configuration:
 

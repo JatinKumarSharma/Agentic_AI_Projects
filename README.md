@@ -8,7 +8,7 @@ evaluation evidence stay isolated.
 
 | Folder | Status | What it is |
 |---|---|---|
-| [`financial-research-assistant/`](financial-research-assistant/) | Live | Tool-calling financial research agent. FastAPI + LangChain + OpenBB, configurable LLM provider. |
+| [`financial-research-assistant/`](financial-research-assistant/) | Live | Agentic financial research system with a minimal web UI (`web/`). Compatible with Groq, OpenAI, Gemini and Ollama models. |
 | [`adaptive-customer-voice-interviewer/`](adaptive-customer-voice-interviewer/) | Reserved | Adaptive customer voice interview agent. Space reserved; code to be added. |
 
 ## Conventions

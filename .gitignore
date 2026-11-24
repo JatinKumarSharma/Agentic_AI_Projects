@@ -15,6 +15,11 @@ __pycache__/
 .env.*
 !.env.example
 
+# Frontend build
+node_modules/
+dist/
+*.tsbuildinfo
+
 # VS Code
 .vscode/
 
