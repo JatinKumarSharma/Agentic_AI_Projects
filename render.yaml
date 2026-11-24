@@ -1,4 +1,4 @@
-# Render blueprint for the financial research API.
+# Render blueprint for the financial research assistant.
 # The service builds from the repository root. Root main.py and requirements.txt
 # are thin shims that load the real code from financial-research-assistant/.
 services:
@@ -10,3 +10,6 @@ services:
     buildCommand: pip install -r requirements.txt
     startCommand: uvicorn main:app --host 0.0.0.0 --port $PORT
     healthCheckPath: /health
+    envVars:
+      - key: FRONTEND_ORIGINS
+        value: http://localhost:5173,http://127.0.0.1:5173,https://financial-research-assistant-web.vercel.app
