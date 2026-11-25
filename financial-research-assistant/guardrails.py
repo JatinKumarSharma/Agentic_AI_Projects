@@ -313,6 +313,21 @@ def tool_plan(query):
         if pattern.search(text):
             matched.append((tool_name, label))
 
+    # "SEC XBRL company facts" mentions the SEC but does not ask for a filing
+    # index. Drop the broader filing tool when the specific XBRL intent is
+    # explicit, so the deterministic ceiling reflects one evidence need.
+    matched_names = {name for name, _ in matched}
+    if (
+        "get_sec_company_facts_tool" in matched_names
+        and "get_sec_filings_tool" in matched_names
+        and re.search(r"\b(?:xbrl|company facts|us-gaap)\b", text, re.IGNORECASE)
+    ):
+        matched = [
+            (name, label)
+            for name, label in matched
+            if name != "get_sec_filings_tool"
+        ]
+
     comparison = bool(_COMPARISON_RE.search(text))
     if not matched:
         max_calls = 3

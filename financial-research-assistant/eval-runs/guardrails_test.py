@@ -157,6 +157,16 @@ check(
     f"max={sec_plan['max_calls']}",
 )
 
+facts_plan = tool_plan(
+    "What is Microsoft's latest annual revenue from SEC XBRL company facts?"
+)
+check(
+    "explicit XBRL intent does not inherit filing budget",
+    facts_plan["tools"] == ["get_sec_company_facts_tool"]
+    and facts_plan["max_calls"] == 2,
+    f"max={facts_plan['max_calls']}",
+)
+
 macro_plan = tool_plan("What is the latest US CPI reading from FRED?")
 check(
     "macro question gets FRED tool",

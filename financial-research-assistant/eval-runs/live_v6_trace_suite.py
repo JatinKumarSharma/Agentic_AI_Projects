@@ -77,6 +77,7 @@ for key, case in CASES.items():
     tool_names = [call.get("name") for call in tool_calls]
     results[key] = {
         **case,
+        "tool_calls": response.get("tool_calls", []),
         "actual_tools": tool_names,
         "tool_call_count": len(tool_names),
         "call_ceiling": response.get("max_tool_calls"),

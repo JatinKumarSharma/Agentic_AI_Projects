@@ -105,13 +105,21 @@ def get_sec_filings_tool(symbol: str, form: str = "10-K", limit: int = 5):
 
 
 @tool
-def get_sec_company_facts_tool(symbol: str, concept: str = "Revenues", limit: int = 6):
+def get_sec_company_facts_tool(
+    symbol: str,
+    concept: str = "Revenues",
+    limit: int = 6,
+    period: str = "",
+):
     """Get recent SEC XBRL company facts for a standard us-gaap concept.
 
     Supported aliases: revenue, net income, assets, liabilities, cash, equity.
     A raw us-gaap concept name is also accepted.
+    Use period="annual" for annual/10-K figures or period="quarterly" for
+    quarterly/10-Q figures. This avoids returning a recent quarter when the
+    question asks for the latest full year.
     """
-    return get_sec_company_facts(symbol, concept, limit)
+    return get_sec_company_facts(symbol, concept, limit, period=period)
 
 
 @tool

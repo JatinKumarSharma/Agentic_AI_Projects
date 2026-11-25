@@ -216,6 +216,49 @@ check(
     len(mixed["concepts_used"]) == 2 and "Revenues" in mixed["concepts_used"],
 )
 
+# 6c. Annual filtering prevents a recent quarter from hiding the full year.
+mixed_annual_facts = {
+    "facts": {
+        "us-gaap": {
+            "RevenueFromContractWithCustomerExcludingAssessedTax": {
+                "units": {
+                    "USD": [
+                        {
+                            "start": "2026-07-01",
+                            "end": "2026-09-30",
+                            "val": 92279000000,
+                            "fy": 2027,
+                            "fp": "Q1",
+                            "form": "10-Q",
+                            "accn": "quarter",
+                        },
+                        {
+                            "start": "2025-07-01",
+                            "end": "2026-06-30",
+                            "val": 331839000000,
+                            "fy": 2026,
+                            "fp": "FY",
+                            "form": "10-K",
+                            "accn": "annual",
+                        },
+                    ]
+                }
+            }
+        }
+    }
+}
+with patch.object(source_tools, "_sec_ticker_map", return_value={"MSFT": msft_company}):
+    with patch.object(source_tools, "_request_json", return_value=mixed_annual_facts):
+        annual = source_tools.get_sec_company_facts(
+            "MSFT", "revenue", 1, period="annual"
+        )
+check(
+    "annual period filter skips newer quarterly facts",
+    annual["success"] is True
+    and annual["facts"][0]["value"] == 331839000000.0
+    and annual["facts"][0]["form"] == "10-K",
+)
+
 # 7. Statement rows keep their period labels.
 class FakeFrame:
     empty = False

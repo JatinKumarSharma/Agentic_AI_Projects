@@ -286,8 +286,18 @@ def _xbrl_concept_candidates(resolved: str):
     return [resolved]
 
 
-def get_sec_company_facts(symbol: str, concept: str = "Revenues", limit: int = 6):
-    """Return recent SEC XBRL company facts for a standard us-gaap concept."""
+def get_sec_company_facts(
+    symbol: str,
+    concept: str = "Revenues",
+    limit: int = 6,
+    period: str = "",
+):
+    """Return recent SEC XBRL company facts for a standard us-gaap concept.
+
+    `period` may be "annual" (10-K / FY), "quarterly" (10-Q), or empty for all
+    filings. Filtering before the limit prevents a recent quarter from hiding
+    the requested full-year figure.
+    """
     aliases = {
         "revenue": "Revenues",
         "revenues": "Revenues",
@@ -304,6 +314,9 @@ def get_sec_company_facts(symbol: str, concept: str = "Revenues", limit: int = 6
         limit = max(1, min(int(limit or 6), 12))
     except (TypeError, ValueError):
         limit = 6
+    period = str(period or "").strip().lower()
+    annual_only = period in {"annual", "annually", "fy", "full year", "full-year", "10-k"}
+    quarterly_only = period in {"quarter", "quarterly", "q", "10-q"}
 
     try:
         company = _sec_company(symbol)
@@ -349,9 +362,14 @@ def get_sec_company_facts(symbol: str, concept: str = "Revenues", limit: int = 6
                 unit_name = current_unit
 
             for row in units[current_unit]:
+                form = str(row.get("form") or "").upper()
+                fp = str(row.get("fp") or "").upper()
+                if annual_only and form != "10-K" and fp != "FY":
+                    continue
+                if quarterly_only and form != "10-Q" and not fp.startswith("Q"):
+                    continue
                 start = row.get("start")
                 end = row.get("end")
-                form = row.get("form")
                 period_key = (start, end, form)
                 if period_key in seen_periods:
                     continue
@@ -391,6 +409,7 @@ def get_sec_company_facts(symbol: str, concept: str = "Revenues", limit: int = 6
             "symbol": str(symbol).upper(),
             "concept": rows[0]["concept"],
             "concepts_used": concepts_used,
+            "period": period or None,
             "unit": unit_name,
             "facts": rows,
         }

@@ -31,7 +31,7 @@ app = FastAPI(
         "An agentic AI research assistant compatible with Groq, OpenAI, "
         "Google Gemini and Ollama models."
     ),
-    version="1.2.1",
+    version="1.2.2",
 )
 
 # Restrict browser access to the configured frontend origins. Add deployed UI
@@ -107,7 +107,7 @@ def health():
     return {
         "status": "healthy",
         "service": "financial-analyst-api",
-        "version": "1.2.1"
+        "version": "1.2.2"
     }
 
 
@@ -117,7 +117,7 @@ def version():
     provider, model = _active_model()
     status = source_status()
     return {
-        "service_version": "1.2.1",
+        "service_version": "1.2.2",
         "git_commit": os.getenv("RENDER_GIT_COMMIT"),
         "guardrails_loaded": "guardrails" in sys.modules,
         "source_tools_loaded": "source_tools" in sys.modules,
