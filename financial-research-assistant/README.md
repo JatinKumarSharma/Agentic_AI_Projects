@@ -228,6 +228,7 @@ Agentic_AI_Projects/
 │   │   ├── guardrails_test.py
 │   │   ├── source_tools_test.py
 │   │   ├── v6_source_suite.py
+│   │   ├── live_v6_trace_suite.py
 │   │   └── agent_baseline.py
 │   ├── .env.example
 │   ├── agent.py
@@ -268,6 +269,7 @@ Contains the Python dependencies required to run the project.
   Method   Endpoint                        Purpose
   -------- ------------------------------- ------------------------------------------
   POST     `/ask`                          Ask a financial question using the agent
+                                           (`include_trace: true` adds tool evidence)
   GET      `/`                             API health/home endpoint
   GET      `/health`                       Health check
   GET      `/version`                      Commit, model and source configuration
@@ -523,7 +525,8 @@ structured statements, FRED macro indicators and allowlisted web search, plus
 a deterministic minimum-sufficient tool-call ceiling and a web-source
 attribution guardrail. The five-question suite stays unchanged for historical
 comparability; v6 evidence is captured separately by `v6_source_suite.py`,
-`source_tools_test.py` and the extended `guardrails_test.py`.
+`live_v6_trace_suite.py`, `source_tools_test.py` and the extended
+`guardrails_test.py`.
 
 Reproduce any iteration from this folder:
 
@@ -534,11 +537,14 @@ python eval-runs/capability_probe.py    # v5 capability/scope/loop probes
 python eval-runs/guardrails_test.py     # deterministic guardrail checks, no API calls
 python eval-runs/source_tools_test.py   # adapter normalization, no API calls
 python eval-runs/v6_source_suite.py     # v6 source/efficiency probe, real calls
+python eval-runs/live_v6_trace_suite.py # deployed v6 traces, no local keys needed
 ```
 
-> The fixed suite and v6 source suite require valid `GROQ_API_KEY`,
+> The fixed suite and local `v6_source_suite.py` require valid `GROQ_API_KEY`,
 > `FMP_API_KEY`, `FRED_API_KEY` and one web-search key in a `.env` file. They
-> make real provider calls and write trace JSON into this folder. The
+> make real provider calls and write trace JSON into this folder.
+> `live_v6_trace_suite.py` calls a deployed API with `include_trace: true` and
+> uses the service's own environment, so no local keys are needed. The
 > guardrail and source-adapter tests are fully offline.
 
 ## Error Handling

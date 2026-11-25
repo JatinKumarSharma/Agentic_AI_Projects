@@ -265,6 +265,27 @@ def get_sec_filings(symbol: str, form: str = "10-K", limit: int = 5):
         return _error("SEC EDGAR", exc, symbol)
 
 
+_REVENUE_CONCEPTS = (
+    "Revenues",
+    "RevenueFromContractWithCustomerExcludingAssessedTax",
+    "RevenueFromContractWithCustomerIncludingAssessedTax",
+    "SalesRevenueNet",
+)
+
+
+def _xbrl_concept_candidates(resolved: str):
+    """Return equivalent us-gaap concepts, newest reporting standards first.
+
+    Large issuers change their primary revenue tag over time. Microsoft, for
+    example, reports recent revenue under
+    RevenueFromContractWithCustomerExcludingAssessedTax while older filings use
+    Revenues. Checking one canonical tag would silently return stale data.
+    """
+    if resolved.lower() == "revenues":
+        return list(_REVENUE_CONCEPTS)
+    return [resolved]
+
+
 def get_sec_company_facts(symbol: str, concept: str = "Revenues", limit: int = 6):
     """Return recent SEC XBRL company facts for a standard us-gaap concept."""
     aliases = {
@@ -294,12 +315,15 @@ def get_sec_company_facts(symbol: str, concept: str = "Revenues", limit: int = 6
         data = _request_json(url, _sec_headers())
         gaap = data.get("facts", {}).get("us-gaap", {})
 
-        actual = None
-        for name in gaap:
-            if name.lower() == resolved.lower():
-                actual = name
-                break
-        if not actual:
+        candidates = _xbrl_concept_candidates(resolved)
+        available = []
+        for candidate in candidates:
+            for name in gaap:
+                if name.lower() == candidate.lower() and name not in available:
+                    available.append(name)
+                    break
+
+        if not available:
             suggestions = [name for name in gaap if resolved.lower()[:5] in name.lower()][:12]
             return {
                 "success": False,
@@ -310,34 +334,53 @@ def get_sec_company_facts(symbol: str, concept: str = "Revenues", limit: int = 6
                 "available_concepts": suggestions,
             }
 
-        units = gaap[actual].get("units", {})
-        unit_name = "USD" if "USD" in units else next(iter(units), None)
-        if not unit_name:
-            return _no_results("SEC EDGAR", "The concept returned no units.", symbol)
-
         rows = []
-        seen = set()
-        for row in units[unit_name]:
-            key = (row.get("start"), row.get("end"), row.get("val"), row.get("form"))
-            if key in seen:
+        seen_periods = set()
+        seen_values = set()
+        concepts_used = []
+        unit_name = None
+
+        for actual in available:
+            units = gaap[actual].get("units", {})
+            current_unit = "USD" if "USD" in units else next(iter(units), None)
+            if not current_unit:
                 continue
-            seen.add(key)
-            rows.append(
-                {
-                    "start": row.get("start"),
-                    "end": row.get("end"),
-                    "value": _number(row.get("val")),
-                    "fy": row.get("fy"),
-                    "fp": row.get("fp"),
-                    "form": row.get("form"),
-                    "accession_number": row.get("accn"),
-                }
-            )
-        rows.sort(key=lambda item: str(item.get("end") or ""), reverse=True)
-        rows = rows[:limit]
+            if unit_name is None:
+                unit_name = current_unit
+
+            for row in units[current_unit]:
+                start = row.get("start")
+                end = row.get("end")
+                form = row.get("form")
+                period_key = (start, end, form)
+                if period_key in seen_periods:
+                    continue
+                value = _number(row.get("val"))
+                value_key = (start, end, value, form)
+                if value_key in seen_values:
+                    continue
+                seen_periods.add(period_key)
+                seen_values.add(value_key)
+                if actual not in concepts_used:
+                    concepts_used.append(actual)
+                rows.append(
+                    {
+                        "concept": actual,
+                        "start": start,
+                        "end": end,
+                        "value": value,
+                        "fy": row.get("fy"),
+                        "fp": row.get("fp"),
+                        "form": form,
+                        "accession_number": row.get("accn"),
+                    }
+                )
 
         if not rows:
             return _no_results("SEC EDGAR", "The concept returned no usable facts.", symbol)
+
+        rows.sort(key=lambda item: str(item.get("end") or ""), reverse=True)
+        rows = rows[:limit]
 
         return {
             "success": True,
@@ -346,7 +389,8 @@ def get_sec_company_facts(symbol: str, concept: str = "Revenues", limit: int = 6
             "source_url": url,
             "retrieved_at": _retrieved_at(),
             "symbol": str(symbol).upper(),
-            "concept": actual,
+            "concept": rows[0]["concept"],
+            "concepts_used": concepts_used,
             "unit": unit_name,
             "facts": rows,
         }

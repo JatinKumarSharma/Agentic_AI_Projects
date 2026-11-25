@@ -164,6 +164,58 @@ check(
     len(facts["facts"]) == 1 and facts["facts"][0]["value"] == 416161000000.0,
 )
 
+# 6b. Revenue falls forward to the newer us-gaap concept used by MSFT.
+msft_company = {"cik": "0000789019", "title": "Microsoft Corporation"}
+mixed_facts = {
+    "facts": {
+        "us-gaap": {
+            "Revenues": {
+                "units": {
+                    "USD": [
+                        {
+                            "start": "2010-07-01",
+                            "end": "2011-06-30",
+                            "val": 62484000000,
+                            "fy": 2011,
+                            "fp": "FY",
+                            "form": "10-K",
+                            "accn": "old",
+                        }
+                    ]
+                }
+            },
+            "RevenueFromContractWithCustomerExcludingAssessedTax": {
+                "units": {
+                    "USD": [
+                        {
+                            "start": "2024-07-01",
+                            "end": "2025-06-30",
+                            "val": 281724000000,
+                            "fy": 2025,
+                            "fp": "FY",
+                            "form": "10-K",
+                            "accn": "new",
+                        }
+                    ]
+                }
+            },
+        }
+    }
+}
+with patch.object(source_tools, "_sec_ticker_map", return_value={"MSFT": msft_company}):
+    with patch.object(source_tools, "_request_json", return_value=mixed_facts):
+        mixed = source_tools.get_sec_company_facts("MSFT", "revenue", 4)
+check(
+    "revenue uses the newest available SEC concept",
+    mixed["success"] is True
+    and mixed["concept"] == "RevenueFromContractWithCustomerExcludingAssessedTax"
+    and mixed["facts"][0]["value"] == 281724000000.0,
+)
+check(
+    "mixed concepts are disclosed in the result",
+    len(mixed["concepts_used"]) == 2 and "Revenues" in mixed["concepts_used"],
+)
+
 # 7. Statement rows keep their period labels.
 class FakeFrame:
     empty = False

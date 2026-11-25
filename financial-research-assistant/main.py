@@ -20,6 +20,9 @@ from financial_tools import (
 
 class Question(BaseModel):
     question: str
+    # Optional evaluation flag. Normal UI traffic stays unchanged; trace mode
+    # returns deterministic tool-call evidence without exposing credentials.
+    include_trace: bool = False
 
 
 app = FastAPI(
@@ -28,7 +31,7 @@ app = FastAPI(
         "An agentic AI research assistant compatible with Groq, OpenAI, "
         "Google Gemini and Ollama models."
     ),
-    version="1.2.0",
+    version="1.2.1",
 )
 
 # Restrict browser access to the configured frontend origins. Add deployed UI
@@ -67,6 +70,16 @@ def _active_model():
 def ask_financial_question(request: Question):
 
     try:
+        if request.include_trace:
+            trace = execute(request.question, return_trace=True)
+            return {
+                "question": request.question,
+                "answer": trace["answer"],
+                "tool_calls": trace["tool_calls"],
+                "sources": trace["sources"],
+                "max_tool_calls": trace["max_tool_calls"],
+            }
+
         answer = execute(request.question)
 
         return {
@@ -94,7 +107,7 @@ def health():
     return {
         "status": "healthy",
         "service": "financial-analyst-api",
-        "version": "1.2.0"
+        "version": "1.2.1"
     }
 
 
@@ -104,7 +117,7 @@ def version():
     provider, model = _active_model()
     status = source_status()
     return {
-        "service_version": "1.2.0",
+        "service_version": "1.2.1",
         "git_commit": os.getenv("RENDER_GIT_COMMIT"),
         "guardrails_loaded": "guardrails" in sys.modules,
         "source_tools_loaded": "source_tools" in sys.modules,
