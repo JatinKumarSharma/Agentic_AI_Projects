@@ -1,3 +1,4 @@
+import json
 import os
 from dotenv import load_dotenv
 
@@ -21,10 +22,11 @@ from financial_tools import (
     get_peers,
     get_quote,
     get_performance,
+    get_historical_prices,
     get_consensus,
     get_company_news,
 )
-from guardrails import apply_guardrails
+from guardrails import apply_guardrails, iteration_fallback, pre_query_guardrail
 
 
 @tool
@@ -58,6 +60,16 @@ def get_performance_tool(symbol: str):
 
 
 @tool
+def get_historical_prices_tool(symbol: str, days: int = 30):
+    """Get daily OHLC prices for roughly the last N calendar days.
+
+    Use this for questions about price movement, ups and downs, trends, recent
+    swings, or a one-month chart. Report period_change_pct directly.
+    """
+    return get_historical_prices(symbol, days)
+
+
+@tool
 def get_consensus_tool(symbol: str):
     """Get analyst consensus price target."""
     return get_consensus(symbol)
@@ -75,6 +87,7 @@ tools = [
     get_peers_tool,
     get_quote_tool,
     get_performance_tool,
+    get_historical_prices_tool,
     get_consensus_tool,
     get_company_news_tool,
 ]
@@ -156,6 +169,17 @@ RULES:
 14. When declining a request for ethical, privacy or fairness reasons,
     explain the reason in one sentence and offer a legitimate,
     data-grounded alternative. Never give a bare refusal.
+15. For historical prices, recent price movement, ups and downs, trends, or
+    chart-style requests, use get_historical_prices_tool and report its
+    period_change_pct directly. Do not recompute it.
+16. If no tool can provide the requested data, say so in one sentence and
+    list what you can provide. Do not keep calling tools for the same
+    missing data.
+17. Stay in the financial research role. Do not claim to generate images or
+    to remember previous conversations.
+18. If a ticker search returns no results, do not repeat the same search.
+    Use the most likely symbol with the relevant data tool once, then report
+    the outcome.
 
 When a tool returns an error, use the tool's error_type and message to
 explain the limitation accurately.
@@ -192,14 +216,20 @@ def execute(query: str):
     """
     Execute a financial research question using the tool-enabled LLM.
     """
+    # Capability and scope boundaries are deterministic. They do not depend on
+    # the model remembering a prompt rule.
+    early_answer = pre_query_guardrail(query)
+    if early_answer:
+        return apply_guardrails(early_answer, [])
 
     messages = [
-    SystemMessage(content=SYSTEM_PROMPT),
-    HumanMessage(content=query),
-]
+        SystemMessage(content=SYSTEM_PROMPT),
+        HumanMessage(content=query),
+    ]
 
     max_iterations = 8
     tool_results = []
+    seen_calls = set()
 
     for _ in range(max_iterations):
 
@@ -210,36 +240,63 @@ def execute(query: str):
         # The model has finished answering. Deterministic guardrails run on
         # the final text regardless of what the model was instructed to do.
         if not response.tool_calls:
-            answer = normalize_response(response.content)
+            answer = normalize_response(response.content).strip()
+            if not answer:
+                answer = iteration_fallback(tool_results)
             return apply_guardrails(answer, tool_results)
+
+        repeated = False
 
         # Execute every tool requested by the model.
         for tool_call in response.tool_calls:
 
             tool_name = tool_call["name"]
             tool_args = tool_call["args"]
+            signature = (tool_name, json.dumps(tool_args, sort_keys=True, default=str))
+            if signature in seen_calls:
+                repeated = True
+            seen_calls.add(signature)
 
             selected_tool = tool_map.get(tool_name)
 
             if selected_tool is None:
                 tool_result = {
-                    "error": f"Unknown tool: {tool_name}"
+                    "success": False,
+                    "error_type": "provider_error",
+                    "message": f"Unknown tool: {tool_name}",
                 }
             else:
                 try:
                     tool_result = selected_tool.invoke(tool_args)
                 except Exception as e:
                     tool_result = {
-                        "error": str(e)
+                        "success": False,
+                        "error_type": "provider_error",
+                        "message": str(e),
                     }
 
             tool_results.append(tool_result)
 
             messages.append(
-    ToolMessage(
-        content=str(tool_result),
-        tool_call_id=tool_call["id"],
-    )
-)
+                ToolMessage(
+                    content=str(tool_result),
+                    tool_call_id=tool_call["id"],
+                )
+            )
 
-    return "The agent reached the maximum number of tool iterations."
+        # A repeated call with no new information is a deterministic stop
+        # signal. Force the next model turn to conclude instead of looping.
+        if repeated:
+            messages.append(
+                SystemMessage(
+                    content=(
+                        "A repeated tool call returned no new information. "
+                        "If the question concerns historical prices, call "
+                        "get_historical_prices_tool once with the most likely "
+                        "symbol. Otherwise answer now using only the results "
+                        "already retrieved, or state the limitation."
+                    )
+                )
+            )
+
+    return apply_guardrails(iteration_fallback(tool_results), tool_results)

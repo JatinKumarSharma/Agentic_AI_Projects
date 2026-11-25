@@ -54,6 +54,19 @@ The agent can:
 - Continue the workflow until enough information is available.
 - Return a final answer grounded in retrieved data.
 
+### Current capabilities and boundaries
+
+The agent can retrieve quotes, profiles, peers, aggregate performance, analyst
+consensus, company news, and **daily historical OHLC prices** for supported
+symbols. Historical-price questions use `get_historical_prices_tool`, which
+returns a compact table and an explicit `period_change_pct`.
+
+It cannot generate images and has no access to previous conversations.
+Capability, scope and tool-loop boundaries are enforced by deterministic
+guardrails in [`guardrails.py`](guardrails.py), not by prompt instructions
+alone. If the provider restricts a symbol, the agent reports the limitation
+instead of inventing a chart.
+
 ### Example Multi-Step Query
 
 > Find TSLA peers, determine which peer has the highest market cap, and
@@ -406,6 +419,11 @@ The agent is instructed to:
     data is unavailable.
 14. Explain an ethical or privacy refusal in one sentence and offer a
     data-grounded alternative.
+15. Use the historical-price tool for price movement and report its
+    `period_change_pct` directly.
+16. If no tool can answer, say so and list what you can provide.
+17. Stay in the financial research role; no images and no prior-chat memory.
+18. Do not repeat a failed ticker search; try the likely symbol once.
 
 ## Evaluation
 
@@ -413,27 +431,32 @@ This project is scored with the **5-D Evaluation Framework** — Hallucination,
 Factuality, Originality, Helpfulness and Harmlessness, scored independently
 on a 1–5 scale with no aggregate.
 
-A fixed five-question suite was run across four prompt iterations plus one
-guardrail iteration. The first run exposed a real error: the quote tool
-returned `change_percent: -0.019043` (−1.9043%) but the agent answered
-**−0.62%**. A targeted rule fixed it, two later prompt interventions produced
-no gain, one produced a regression and was reverted.
+A fixed five-question suite was run across four prompt iterations plus two
+architectural/guardrail iterations. The first run exposed a real error: the
+quote tool returned `change_percent: -0.019043` (−1.9043%) but the agent
+answered **−0.62%**. A targeted rule fixed it, two later prompt interventions
+produced no gain, one produced a regression and was reverted.
 
-The fifth iteration changed the prompt back to v2 and added deterministic
-guardrails in [`guardrails.py`](guardrails.py): the provider's fractional
-percentage is normalized in code, a mismatched percentage is corrected, and a
-bare refusal is upgraded with a reason and a data-grounded alternative. The
-refusal behaviour changed for the first time, but a new unguarded claim
-regressed Factuality — that trade-off is recorded rather than hidden. Full
-traces, scores and the change log are in
-[`eval-runs/EVAL_LOG.md`](eval-runs/EVAL_LOG.md).
+v4 added deterministic guardrails in [`guardrails.py`](guardrails.py): the
+provider's fractional percentage is normalized in code, a mismatched percentage
+is corrected, and a bare refusal is upgraded with a reason and a data-grounded
+alternative. The refusal behaviour changed for the first time, but a new
+unguarded claim regressed Factuality — that trade-off is recorded rather than
+hidden.
+
+v5 added capability/scope boundaries, normalized tool failures, historical
+prices, a no-progress loop breaker and an honest iteration fallback. A live
+"maximum number of tool iterations" failure became a bounded answer, and the
+fixed suite recovered to Factuality 5.00. Full traces, scores and the change
+log are in [`eval-runs/EVAL_LOG.md`](eval-runs/EVAL_LOG.md).
 
 Reproduce any iteration from this folder:
 
 ```bash
 pip install -r requirements.txt
-python eval-runs/eval_suite.py v0   # or v1, v2, v3, v4
-python eval-runs/guardrails_test.py # deterministic guardrail checks, no API calls
+python eval-runs/eval_suite.py v0        # or v1, v2, v3, v4, v5
+python eval-runs/capability_probe.py    # v5 capability/scope/loop probes
+python eval-runs/guardrails_test.py     # deterministic guardrail checks, no API calls
 ```
 
 > Requires valid `GROQ_API_KEY` and `FMP_API_KEY` in a `.env` file for the

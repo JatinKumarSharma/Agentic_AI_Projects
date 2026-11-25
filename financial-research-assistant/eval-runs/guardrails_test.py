@@ -15,8 +15,10 @@ sys.path.insert(0, str(PROJECT_ROOT))
 
 from guardrails import (
     apply_guardrails,
+    iteration_fallback,
     normalize_quote_record,
     percentage_guardrail,
+    pre_query_guardrail,
     refusal_guardrail,
 )
 
@@ -79,6 +81,69 @@ check(
 check(
     "apply_guardrails on recorded Q4 answer",
     "Alternative:" in apply_guardrails("I’m sorry, but I can’t help with that.", []),
+)
+
+# 7. v5 capability and scope boundaries are deterministic.
+image_answer = pre_query_guardrail("Can you generate an image?")
+check(
+    "image request blocked before model",
+    bool(image_answer and "can't generate or display images" in image_answer),
+)
+
+plural_image_answer = pre_query_guardrail(
+    "I want to know whether you can generate images or not?"
+)
+check(
+    "plural image request blocked before model",
+    bool(plural_image_answer and "can't generate or display images" in plural_image_answer),
+)
+
+memory_answer = pre_query_guardrail(
+    "in one of the conversations you generated an image"
+)
+check(
+    "memory + image claim handled together",
+    bool(
+        memory_answer
+        and "don't retain or access previous conversations" in memory_answer
+        and "can't generate or display images" in memory_answer
+    ),
+)
+
+scope_answer = pre_query_guardrail("lets talk about relationships")
+check(
+    "non-financial topic redirected to financial scope",
+    bool(scope_answer and "financial or market relationships" in scope_answer),
+)
+
+check(
+    "greeting reaches model normally",
+    pre_query_guardrail("hi") is None,
+)
+
+check(
+    "role-correction question reaches model normally",
+    pre_query_guardrail(
+        "you forget you are an financial research analyst so why didn't you "
+        "said financial or market relationships?"
+    ) is None,
+)
+
+check(
+    "financial question reaches model normally",
+    pre_query_guardrail(
+        "Can you represent the ups and downs of TATA steel shares in past one month"
+    )
+    is None,
+)
+
+# 8. The iteration fallback is honest and useful.
+fallback = iteration_fallback(
+    [{"success": False, "error_type": "subscription_restricted"}]
+)
+check(
+    "iteration fallback explains restriction and offers alternatives",
+    "subscription" in fallback and "historical prices" in fallback,
 )
 
 failed = [name for name, passed, _ in results if not passed]

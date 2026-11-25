@@ -1,0 +1,65 @@
+[
+  {
+    "question": "hi",
+    "path": "model",
+    "tools": [],
+    "answer": "Hello! How can I assist you with your financial research today?"
+  },
+  {
+    "question": "I want to know whether you can generate images or not?",
+    "path": "deterministic_guardrail",
+    "tools": [],
+    "answer": "I can't generate or display images. I can provide a text-based price table, describe a chart, or pull historical prices where the provider supports the ticker."
+  },
+  {
+    "question": "but in one of the conversations you generated an image",
+    "path": "deterministic_guardrail",
+    "tools": [],
+    "answer": "I don't retain or access previous conversations, and I can't generate or display images. I can provide a text-based price table, describe a chart, or pull historical prices where the provider supports the ticker."
+  },
+  {
+    "question": "lets talk about relationships",
+    "path": "deterministic_guardrail",
+    "tools": [],
+    "answer": "I'm a financial research assistant. I can help with financial or market relationships, company comparisons, valuation metrics, quotes, peers, analyst consensus, news, and historical price movement. Which would you like to explore?"
+  },
+  {
+    "question": "you forget you are an financial research analyst so why didn't you said financial or market relationships?",
+    "path": "model",
+    "tools": [],
+    "answer": "I’m sorry if that came across as vague—I’m here to dive into the financial and market relationships you’re interested in. Could you let me know which companies, sectors, or specific relationships (e.g., peer comparisons, supply‑chain links, market‑cap dynamics, etc.) you’d like me to analyze? Once I have that, I can pull the relevant data and give you a clear, data‑driven overview."
+  },
+  {
+    "question": "Can you represent the ups and downs of TATA steel company shares in past one month",
+    "path": "model",
+    "tools": [
+      {
+        "tool": "search_stock_tool",
+        "args": {
+          "symbol": "TATASTEEL"
+        }
+      },
+      {
+        "tool": "search_stock_tool",
+        "args": {
+          "symbol": "TATASTEEL.NS"
+        }
+      }
+    ],
+    "answer": "I couldn't retrieve the requested data with the available tools. The last tool result indicated that the search returned no matching ticker. I can provide a quote, profile, peers, analyst consensus, news, aggregate performance, or historical prices where the provider supports the ticker."
+  },
+  {
+    "question": "Can you represent the ups and downs of AAPL shares in past one month",
+    "path": "model",
+    "tools": [
+      {
+        "tool": "get_historical_prices_tool",
+        "args": {
+          "days": 30,
+          "symbol": "AAPL"
+        }
+      }
+    ],
+    "answer": "**Apple Inc. (AAPL) – One‑Month Price Movement (Oct 15 – Nov 24 2026)**  \n\n| Metric | Value |\n|--------|-------|\n| **Period start** | 2026‑10‑15 |\n| **Period end** | 2026‑11‑24 |\n| **Opening price (first day)** | $342.00 |\n| **Closing price (last day)** | $351.49 |\n| **Highest price** | $360.83 (2026‑11‑13) |\n| **Lowest price** | $325.33 (2026‑11‑03) |\n| **Overall change** | **+2.77 %** |\n\n### Key daily swings\n- **Sharp dip** on 2026‑11‑03: fell from $325.58 to $331.90, a drop of about 2.0 % in a single day.  \n- **Strong rally** on 2026‑11‑12: climbed from $357.81 to $359.37, a 0.5 % gain.  \n- **Largest single‑day move**: 2026‑11‑13, up from $357.96 to $360.83 (≈ 0.8 %).  \n- **Lowest point** reached on 2026‑11‑03 at $325.33, the lowest of the month.  \n- **Highest point** reached on 2026‑11‑13 at $360.83, the peak of the month.\n\n### Trend overview\n- The stock began the month near $342, dipped to a low of $325 in early November, then rebounded to close above $351 by the end of the month.  \n- The overall 2.77 % gain reflects a modest upward trend after a brief mid‑month trough.  \n- Volatility was moderate, with daily swings typically within 1–2 % of the previous close.\n\n**Bottom line:** Over the past month, AAPL shares experienced a brief dip in early November but finished the period with a modest 2.77 % gain, reaching a high of $360.83 and a low of $325.33."
+  }
+]

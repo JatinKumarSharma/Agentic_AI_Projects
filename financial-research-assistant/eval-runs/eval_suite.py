@@ -4,6 +4,7 @@ Usage:
     python eval_suite.py v0
     python eval_suite.py v1
     python eval_suite.py v2
+    python eval_suite.py v5
 
 Each question targets a dimension of the 5-D framework. The suite is
 IDENTICAL across versions so scores are directly comparable.
@@ -21,8 +22,8 @@ sys.path.insert(0, str(PROJECT_ROOT))
 load_dotenv(PROJECT_ROOT / ".env")
 
 from langchain_core.messages import SystemMessage, HumanMessage, ToolMessage
-from agent import llm_with_tools, tool_map, normalize_response
-from guardrails import apply_guardrails
+from agent import SYSTEM_PROMPT, llm_with_tools, tool_map, normalize_response
+from guardrails import apply_guardrails, iteration_fallback, pre_query_guardrail
 
 VERSION = sys.argv[1] if len(sys.argv) > 1 else "v0"
 
@@ -155,6 +156,11 @@ explain the limitation accurately.
 # after the model answers.
 PROMPTS["v4"] = PROMPTS["v2"]
 
+# v5 keeps the v4 post-answer guardrails and adds deterministic pre-query
+# capability/scope checks, normalized tool failures, a historical-price tool,
+# a no-progress loop breaker, and an honest iteration fallback.
+PROMPTS["v5"] = SYSTEM_PROMPT
+
 # Fixed suite — identical across all versions.
 QUESTIONS = {
     "q1_quote_peers": "What is Apple's (AAPL) current quote and who are its main peers?",
@@ -170,34 +176,88 @@ def capture(prompt, question):
     trace = []
     final_answer = ""
     tool_results = []
+    seen_calls = set()
+
+    if VERSION == "v5":
+        early_answer = pre_query_guardrail(question)
+        if early_answer:
+            return {
+                "question": question,
+                "trace": [{
+                    "step": 0,
+                    "model_text": "[deterministic pre-query guardrail]",
+                    "tool_calls": [],
+                }],
+                "final_answer": apply_guardrails(early_answer, []),
+            }
+
     for step in range(8):
         response = llm_with_tools.invoke(messages)
         messages.append(response)
         tool_calls = []
+        repeated = False
         for tc in response.tool_calls:
             entry = {"tool": tc["name"], "args": tc["args"]}
+            signature = (
+                tc["name"],
+                json.dumps(tc["args"], sort_keys=True, default=str),
+            )
+            if signature in seen_calls:
+                repeated = True
+            seen_calls.add(signature)
+
             tool = tool_map.get(tc["name"])
             if tool is None:
-                result = {"error": f"Unknown tool: {tc['name']}"}
+                result = {
+                    "success": False,
+                    "error_type": "provider_error",
+                    "message": f"Unknown tool: {tc['name']}",
+                }
             else:
                 try:
                     result = tool.invoke(tc["args"])
                 except Exception as exc:
-                    result = {"error": str(exc)}
+                    result = {
+                        "success": False,
+                        "error_type": "provider_error",
+                        "message": str(exc),
+                    }
             entry["result"] = str(result)
             tool_calls.append(entry)
             tool_results.append(result)
             messages.append(ToolMessage(content=str(result), tool_call_id=tc["id"]))
+
         trace.append({
             "step": step + 1,
             "model_text": normalize_response(response.content),
             "tool_calls": tool_calls,
         })
         if not response.tool_calls:
-            final_answer = normalize_response(response.content)
-            if VERSION == "v4":
+            final_answer = normalize_response(response.content).strip()
+            if VERSION == "v5" and not final_answer:
+                final_answer = iteration_fallback(tool_results)
+            if VERSION in ("v4", "v5"):
                 final_answer = apply_guardrails(final_answer, tool_results)
             break
+
+        if VERSION == "v5" and repeated:
+            messages.append(
+                SystemMessage(
+                    content=(
+                        "A repeated tool call returned no new information. "
+                        "If the question concerns historical prices, call "
+                        "get_historical_prices_tool once with the most likely "
+                        "symbol. Otherwise answer now using only the results "
+                        "already retrieved, or state the limitation."
+                    )
+                )
+            )
+    else:
+        if VERSION == "v5":
+            final_answer = apply_guardrails(
+                iteration_fallback(tool_results), tool_results
+            )
+
     return {"question": question, "trace": trace, "final_answer": final_answer}
 
 

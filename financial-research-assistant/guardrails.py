@@ -26,6 +26,42 @@ _REFUSAL_RE = re.compile(
 _PERCENT_RE = re.compile(rf"({_SIGN}?\d+(?:\.\d+)?\s*%)")
 _PCT_FIELD_RE = re.compile(r"change_percent_pct'?\s*:\s*(-?\d+(?:\.\d+)?)")
 
+# v5 deterministic intent patterns. These are deliberately narrow: they catch
+# capability and scope failures observed in live use without routing legitimate
+# financial questions away from the model.
+_IMAGE_RE = re.compile(
+    r"\b(?:generate|generated|create|created|make|made|draw|drew|"
+    r"produce|produced|show|showed)\b[\s\S]{0,40}"
+    r"\b(?:an?\s+)?(?:images|image|pictures|picture|photos|photo|artwork|illustration)\b"
+    r"|\b(?:images|image|pictures|picture|photos|photo|artwork|illustration)\b[\s\S]{0,40}"
+    r"\b(?:generate|generated|create|created|make|made|draw|drew|produce|produced)\b",
+    re.IGNORECASE,
+)
+_MEMORY_RE = re.compile(
+    r"\b(?:in|during|from)\s+"
+    r"(?:one\s+of\s+(?:the\s+)?|our\s+|the\s+)?"
+    r"(?:(?:previous|prior|earlier|last)\s+)?"
+    r"(?:conversation|chat|session|message)s?\b"
+    r"|\byou\s+(?:just|earlier|previously)\s+"
+    r"(?:said|generated|showed|told|made)\b",
+    re.IGNORECASE,
+)
+_SMALL_TALK_RE = re.compile(
+    r"^\s*(?:hi|hello|hey|yo|thanks|thank\s+you|good\s+morning|"
+    r"good\s+afternoon|good\s+evening|how\s+are\s+you)\b[\W_]*$",
+    re.IGNORECASE,
+)
+_FINANCE_RE = re.compile(
+    r"\b(?:stock|stocks|share|shares|ticker|company|companies|market|markets|"
+    r"finance|financial|invest|investing|investment|valuation|revenue|earnings|"
+    r"profit|price|prices|quote|peers|analyst|analysts|consensus|portfolio|"
+    r"sector|sectors|macro|economy|economic|bond|bonds|crypto|fund|funds|ipo|"
+    r"merger|acquisition|dividend|dividends|risk|performance|historical|"
+    r"chart|trend|trends|employee|employees|salary|salaries|headcount|engineer|"
+    r"engineers)\b",
+    re.IGNORECASE,
+)
+
 # The provider returns change_percent as a fraction (e.g. -0.019043). Keeping
 # that raw field alongside a normalized percentage removes the ambiguity that
 # caused the model to recompute from the wrong denominator.
@@ -110,6 +146,85 @@ def percentage_guardrail(answer, verified):
         + f"\n\nTool-verified correction: the percentage returned by the data "
         f"provider is {expected:.2f}%; the percentages above were not returned "
         f"by the provider."
+    )
+
+
+def pre_query_guardrail(query):
+    """Return a deterministic answer when the question is outside the agent's
+    capabilities, or None when the model should handle the question.
+
+    This is a code-level boundary, not a prompt instruction. It exists because
+    live use showed role drift and false capability claims that prompt rules
+    alone did not reliably prevent.
+    """
+    text = (query or "").strip()
+    if not text:
+        return None
+
+    asks_image = bool(_IMAGE_RE.search(text))
+    claims_memory = bool(_MEMORY_RE.search(text))
+
+    if asks_image and claims_memory:
+        return (
+            "I don't retain or access previous conversations, and I can't "
+            "generate or display images. I can provide a text-based price "
+            "table, describe a chart, or pull historical prices where the "
+            "provider supports the ticker."
+        )
+    if asks_image:
+        return (
+            "I can't generate or display images. I can provide a text-based "
+            "price table, describe a chart, or pull historical prices where "
+            "the provider supports the ticker."
+        )
+    if claims_memory:
+        return (
+            "I don't retain or access previous conversations. I can still "
+            "help with financial research in this message — tell me the "
+            "company, ticker, or question."
+        )
+
+    if _SMALL_TALK_RE.match(text):
+        return None
+
+    if not _FINANCE_RE.search(text):
+        return (
+            "I'm a financial research assistant. I can help with financial or "
+            "market relationships, company comparisons, valuation metrics, "
+            "quotes, peers, analyst consensus, news, and historical price "
+            "movement. Which would you like to explore?"
+        )
+
+    return None
+
+
+def iteration_fallback(tool_results):
+    """Honest, useful answer when the agent cannot finish within its budget."""
+    messages = []
+    for result in tool_results or []:
+        if not isinstance(result, dict):
+            continue
+        error_type = result.get("error_type")
+        if error_type == "subscription_restricted":
+            messages.append(
+                "the provider restricts the requested symbol or endpoint "
+                "under the current subscription"
+            )
+            break
+        if error_type == "no_results":
+            messages.append("the search returned no matching ticker")
+            break
+        if error_type == "provider_error":
+            messages.append("the data provider returned an error")
+            break
+
+    reason = f" The last tool result indicated that {messages[0]}." if messages else ""
+    return (
+        "I couldn't retrieve the requested data with the available tools."
+        + reason
+        + " I can provide a quote, profile, peers, analyst consensus, news, "
+        "aggregate performance, or historical prices where the provider "
+        "supports the ticker."
     )
 
 
