@@ -330,6 +330,61 @@ change.
 
 ---
 
+## v6 — multi-source evidence and minimum-sufficient tool selection
+
+v6 is a **separate source-expansion suite**, not a rerun of the fixed
+five-question suite. No new 5-D average is claimed here, because the historical
+suite stays frozen for comparability.
+
+**Deployed configuration:** service `1.2.2`, commit
+`65012448f2f965ae20e01590c23ffff68f7b4791`, `source_tools_loaded: true`,
+FRED configured, web provider auto-detected as Tavily, SEC EDGAR available
+without a key. No credential values are stored in the trace files.
+
+**Deterministic checks:** `guardrails_test.py` **27/27**;
+`source_tools_test.py` **22/22**. These include explicit checks that an XBRL
+question does not inherit the SEC filing ceiling and that an annual revenue
+filter skips newer quarterly XBRL facts.
+
+### Live tool-selection trace
+
+Raw evidence: `eval-runs/live_v6_traces.json`, captured from the deployed API
+with `include_trace: true`.
+
+| Probe | Expected tool | Actual tools | Calls / ceiling | Source |
+|---|---|---|---:|---|
+| Apple 10-K filings | `get_sec_filings_tool` | same | **1 / 2** | SEC EDGAR |
+| Microsoft annual revenue | `get_sec_company_facts_tool` | same | **1 / 2** | SEC EDGAR |
+| Tesla cash-flow statement | `get_financial_statement_tool` | same | **1 / 2** | OpenBB / FMP |
+| US CPI | `get_macro_indicator_tool` | same | **1 / 2** | FRED |
+| Nvidia pre-earnings coverage | `search_financial_web_tool` | same | **2 / 3** | Web search (Tavily) |
+
+All five probes selected only the tool needed for the question. Four were
+answered in one call, below their ceiling. The web probe used two calls for two
+named outlets and stayed below its three-call ceiling. Tool failures were
+normalized, and each successful result carried a distinct source label.
+
+### Trace-driven corrections
+
+The first v6 trace run exposed two real efficiency defects, both fixed before
+the final capture:
+
+1. Microsoft annual revenue initially needed two XBRL calls because the newer
+   quarterly fact sorted ahead of the annual fact, and the generic SEC pattern
+   gave the question a three-call ceiling. The adapter now accepts
+   `period="annual"`, filters before limiting, and follows current SEC revenue
+   concepts. Explicit XBRL intent now gets a two-call ceiling.
+2. The trace harness had no retry for transient provider `500` responses. It now
+   retries up to three attempts, so a one-off infrastructure error does not get
+   recorded as an agent failure.
+
+**What v6 demonstrates:** source breadth increased without tool sprawl. The
+deterministic ceiling is a ceiling, not a router: the model still chose the
+tool, but could not keep searching after the evidence need was met. Web results
+remain discovery leads requiring corroboration.
+
+---
+
 ## Progression summary
 
 Suite average per dimension, identical five-question suite at every iteration:
@@ -366,8 +421,13 @@ checks only when a trace justifies them.
 | `eval_suite_v0.json` … `v5.json` | Full tool traces and final answers for every run |
 | `capability_probe.py` | Reproducible v5 probe for capability, scope and tool-loop regressions |
 | `capability_probe_v5.json` | Seven live probes covering the reported failure session |
-| `guardrails.py` | Deterministic tool-normalization, percentage, refusal, capability and scope guardrails |
-| `guardrails_test.py` | Fifteen code-level checks against strings from earlier traces |
+| `guardrails.py` | Deterministic tool-normalization, percentage, refusal, capability, scope and source-plan guardrails |
+| `guardrails_test.py` | Twenty-seven code-level checks against strings from earlier traces |
+| `source_tools.py` | SEC, FRED, structured-statement and allowlisted web adapters |
+| `source_tools_test.py` | Twenty-two offline adapter normalization checks |
+| `v6_source_suite.py` | Local v6 source/efficiency probe; requires provider keys in `.env` |
+| `live_v6_trace_suite.py` | Deployed v6 trace capture; uses the service's own environment |
+| `live_v6_traces.json` | Final v6 tool-call, source and ceiling evidence |
 | `run1-clean-baseline.json` | Original standalone baseline trace |
 | `run2-failure-case.json` | Original standalone failure-case trace |
 | `EVAL_LOG.md` | This document |

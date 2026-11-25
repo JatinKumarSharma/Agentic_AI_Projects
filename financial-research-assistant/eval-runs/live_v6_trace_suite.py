@@ -11,6 +11,7 @@ call ceiling can be recorded without exposing credentials.
 import json
 import os
 import sys
+import urllib.error
 import urllib.request
 from pathlib import Path
 
@@ -54,14 +55,28 @@ CASES = {
 
 def ask(question):
     payload = json.dumps({"question": question, "include_trace": True}).encode("utf-8")
-    request = urllib.request.Request(
-        f"{API_BASE}/ask",
-        data=payload,
-        headers={"Content-Type": "application/json"},
-        method="POST",
-    )
-    with urllib.request.urlopen(request, timeout=300) as response:
-        return json.loads(response.read().decode("utf-8"))
+    last_error = None
+    for attempt in range(3):
+        request = urllib.request.Request(
+            f"{API_BASE}/ask",
+            data=payload,
+            headers={"Content-Type": "application/json"},
+            method="POST",
+        )
+        try:
+            with urllib.request.urlopen(request, timeout=300) as response:
+                return json.loads(response.read().decode("utf-8"))
+        except urllib.error.HTTPError as exc:
+            last_error = exc
+            if exc.code == 500 and attempt < 2:
+                continue
+            raise
+        except Exception:
+            if attempt < 2:
+                last_error = sys.exc_info()[1]
+                continue
+            raise
+    raise last_error
 
 
 results = {}
