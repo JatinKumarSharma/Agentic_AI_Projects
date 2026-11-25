@@ -26,7 +26,20 @@ from financial_tools import (
     get_consensus,
     get_company_news,
 )
-from guardrails import apply_guardrails, iteration_fallback, pre_query_guardrail
+from source_tools import (
+    get_financial_statement,
+    get_macro_indicator,
+    get_sec_company_facts,
+    get_sec_filings,
+    search_financial_web,
+)
+from guardrails import (
+    apply_guardrails,
+    iteration_fallback,
+    pre_query_guardrail,
+    sources_from_results,
+    tool_plan,
+)
 
 
 @tool
@@ -81,6 +94,64 @@ def get_company_news_tool(symbol: str):
     return get_company_news(symbol)
 
 
+@tool
+def get_sec_filings_tool(symbol: str, form: str = "10-K", limit: int = 5):
+    """Get recent SEC filing metadata and direct EDGAR document URLs.
+
+    Use this when the user asks for filings, forms, 10-K/10-Q/8-K documents,
+    or primary-source evidence. Use form="ALL" when the form is unspecified.
+    """
+    return get_sec_filings(symbol, form, limit)
+
+
+@tool
+def get_sec_company_facts_tool(symbol: str, concept: str = "Revenues", limit: int = 6):
+    """Get recent SEC XBRL company facts for a standard us-gaap concept.
+
+    Supported aliases: revenue, net income, assets, liabilities, cash, equity.
+    A raw us-gaap concept name is also accepted.
+    """
+    return get_sec_company_facts(symbol, concept, limit)
+
+
+@tool
+def get_macro_indicator_tool(
+    indicator: str, start_date: str = "", end_date: str = ""
+):
+    """Get recent FRED observations for a macro indicator.
+
+    Supported aliases: gdp, cpi, inflation, unemployment, fed funds, 10y,
+    2y, sp500. A raw FRED series id is also accepted. Dates use YYYY-MM-DD.
+    """
+    return get_macro_indicator(indicator, start_date, end_date)
+
+
+@tool
+def get_financial_statement_tool(
+    symbol: str,
+    statement: str = "income",
+    period: str = "annual",
+    limit: int = 4,
+):
+    """Get income, balance sheet, or cash-flow statement rows.
+
+    Use statement="income", "balance sheet", or "cash flow". Use
+    period="quarter" for quarterly rows; otherwise annual is used.
+    """
+    return get_financial_statement(symbol, statement, period, limit)
+
+
+@tool
+def search_financial_web_tool(query: str, limit: int = 5):
+    """Search allowed public finance domains for news or research leads.
+
+    Results are discovery leads with source URLs, not primary evidence.
+    Use only when news/context is requested or a structured source cannot
+    answer the question.
+    """
+    return search_financial_web(query, limit)
+
+
 tools = [
     search_stock_tool,
     get_profile_tool,
@@ -90,6 +161,11 @@ tools = [
     get_historical_prices_tool,
     get_consensus_tool,
     get_company_news_tool,
+    get_sec_filings_tool,
+    get_sec_company_facts_tool,
+    get_macro_indicator_tool,
+    get_financial_statement_tool,
+    search_financial_web_tool,
 ]
 
 
@@ -180,6 +256,22 @@ RULES:
 18. If a ticker search returns no results, do not repeat the same search.
     Use the most likely symbol with the relevant data tool once, then report
     the outcome.
+19. Choose the smallest set of tools that can fully answer the question.
+    Call only tools whose output you will use. After each call, check whether
+    the question is answered; if it is, stop calling tools.
+20. Use SEC tools for filings and reported XBRL facts, the statement tool for
+    income/balance-sheet/cash-flow rows, FRED for macro indicators, and the
+    web tool only for news/context or when a structured source cannot answer.
+21. Treat web search results as discovery leads. Attribute them by domain or
+    source URL and do not present them as primary filings.
+22. When more than one source is used, name the sources and state any
+    disagreement instead of silently merging them.
+23. Do not call overlapping tools for the same fact (for example quote and
+    performance) unless the question genuinely needs both.
+24. When a source tool reports missing_credentials, say that source is not
+    configured for this deployment. Do not substitute internal knowledge.
+25. Respect the tool-call ceiling supplied in the plan message. If it is
+    reached, answer with the evidence already retrieved or state the gap.
 
 When a tool returns an error, use the tool's error_type and message to
 explain the limitation accurately.
@@ -212,23 +304,44 @@ def normalize_response(content):
 
     return str(content)
 
-def execute(query: str):
+def _trace_payload(answer, tool_calls, tool_results, plan):
+    return {
+        "answer": answer,
+        "tool_calls": tool_calls,
+        "sources": sources_from_results(tool_results),
+        "max_tool_calls": plan["max_calls"],
+    }
+
+
+def execute(query: str, return_trace: bool = False):
     """
     Execute a financial research question using the tool-enabled LLM.
+
+    The deterministic plan supplies a tool-call ceiling derived from the
+    question. It is a ceiling, not a router: the model still selects the exact
+    tools, but it cannot keep searching after the evidence is sufficient.
     """
+    plan = tool_plan(query)
+
     # Capability and scope boundaries are deterministic. They do not depend on
     # the model remembering a prompt rule.
     early_answer = pre_query_guardrail(query)
     if early_answer:
-        return apply_guardrails(early_answer, [])
+        answer = apply_guardrails(early_answer, [])
+        if return_trace:
+            return _trace_payload(answer, [], [], plan)
+        return answer
 
     messages = [
         SystemMessage(content=SYSTEM_PROMPT),
+        SystemMessage(content=plan["instruction"]),
         HumanMessage(content=query),
     ]
 
     max_iterations = 8
+    max_tool_calls = plan["max_calls"]
     tool_results = []
+    tool_calls = []
     seen_calls = set()
 
     for _ in range(max_iterations):
@@ -243,11 +356,15 @@ def execute(query: str):
             answer = normalize_response(response.content).strip()
             if not answer:
                 answer = iteration_fallback(tool_results)
-            return apply_guardrails(answer, tool_results)
+            answer = apply_guardrails(answer, tool_results)
+            if return_trace:
+                return _trace_payload(answer, tool_calls, tool_results, plan)
+            return answer
 
         repeated = False
+        budget_hit = len(tool_results) >= max_tool_calls
 
-        # Execute every tool requested by the model.
+        # Execute only tools that still fit the deterministic call ceiling.
         for tool_call in response.tool_calls:
 
             tool_name = tool_call["name"]
@@ -257,24 +374,37 @@ def execute(query: str):
                 repeated = True
             seen_calls.add(signature)
 
-            selected_tool = tool_map.get(tool_name)
-
-            if selected_tool is None:
+            if budget_hit:
                 tool_result = {
                     "success": False,
-                    "error_type": "provider_error",
-                    "message": f"Unknown tool: {tool_name}",
+                    "error_type": "tool_budget_reached",
+                    "message": (
+                        f"The tool-call ceiling of {max_tool_calls} was reached "
+                        "for this question."
+                    ),
                 }
             else:
-                try:
-                    tool_result = selected_tool.invoke(tool_args)
-                except Exception as e:
+                selected_tool = tool_map.get(tool_name)
+
+                if selected_tool is None:
                     tool_result = {
                         "success": False,
                         "error_type": "provider_error",
-                        "message": str(e),
+                        "message": f"Unknown tool: {tool_name}",
                     }
+                else:
+                    try:
+                        tool_result = selected_tool.invoke(tool_args)
+                    except Exception as e:
+                        tool_result = {
+                            "success": False,
+                            "error_type": "provider_error",
+                            "message": str(e),
+                        }
 
+            tool_calls.append(
+                {"name": tool_name, "args": tool_args, "result": tool_result}
+            )
             tool_results.append(tool_result)
 
             messages.append(
@@ -284,19 +414,22 @@ def execute(query: str):
                 )
             )
 
-        # A repeated call with no new information is a deterministic stop
+        # A repeated call or an exhausted budget is a deterministic stop
         # signal. Force the next model turn to conclude instead of looping.
-        if repeated:
-            messages.append(
-                SystemMessage(
-                    content=(
-                        "A repeated tool call returned no new information. "
-                        "If the question concerns historical prices, call "
-                        "get_historical_prices_tool once with the most likely "
-                        "symbol. Otherwise answer now using only the results "
-                        "already retrieved, or state the limitation."
-                    )
-                )
+        if repeated or budget_hit:
+            note = (
+                "A repeated tool call returned no new information. "
+                if repeated
+                else ""
             )
+            note += (
+                f"The tool-call ceiling of {max_tool_calls} has been reached. "
+                "Answer now using only the results already retrieved, or state "
+                "the limitation."
+            )
+            messages.append(SystemMessage(content=note))
 
-    return apply_guardrails(iteration_fallback(tool_results), tool_results)
+    answer = apply_guardrails(iteration_fallback(tool_results), tool_results)
+    if return_trace:
+        return _trace_payload(answer, tool_calls, tool_results, plan)
+    return answer

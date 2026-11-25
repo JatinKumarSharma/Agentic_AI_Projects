@@ -20,6 +20,9 @@ from guardrails import (
     percentage_guardrail,
     pre_query_guardrail,
     refusal_guardrail,
+    source_attribution_guardrail,
+    sources_from_results,
+    tool_plan,
 )
 
 RAW_QUOTE = {
@@ -144,6 +147,103 @@ fallback = iteration_fallback(
 check(
     "iteration fallback explains restriction and offers alternatives",
     "subscription" in fallback and "historical prices" in fallback,
+)
+
+# 9. v6 minimum-sufficient tool plans are deterministic.
+sec_plan = tool_plan("Show me Apple's latest 10-K filing from SEC EDGAR")
+check(
+    "SEC filing question gets SEC tool and tight ceiling",
+    "get_sec_filings_tool" in sec_plan["tools"] and sec_plan["max_calls"] == 2,
+    f"max={sec_plan['max_calls']}",
+)
+
+macro_plan = tool_plan("What is the latest US CPI reading from FRED?")
+check(
+    "macro question gets FRED tool",
+    "get_macro_indicator_tool" in macro_plan["tools"]
+    and macro_plan["max_calls"] == 2,
+    f"max={macro_plan['max_calls']}",
+)
+
+comparison_plan = tool_plan("Compare AAPL and MSFT income statements")
+check(
+    "comparison raises ceiling but keeps statement tool",
+    "get_financial_statement_tool" in comparison_plan["tools"]
+    and comparison_plan["max_calls"] == 3,
+    f"max={comparison_plan['max_calls']}",
+)
+
+quote_plan = tool_plan("What is Apple's current price?")
+check(
+    "single-fact question gets quote tool",
+    "get_quote_tool" in quote_plan["tools"] and quote_plan["max_calls"] == 2,
+    f"max={quote_plan['max_calls']}",
+)
+
+open_plan = tool_plan("Explain the outlook for Apple")
+check(
+    "unclassified question gets conservative ceiling",
+    open_plan["tools"] == [] and open_plan["max_calls"] == 3,
+    f"max={open_plan['max_calls']}",
+)
+
+# 10. Web-source attribution is deterministic.
+web_result = {
+    "success": True,
+    "source": "Web search (tavily)",
+    "source_type": "discovery",
+    "results": [{"domain": "reuters.com", "url": "https://www.reuters.com/x"}],
+}
+web_answer = "Nvidia announced a new chip today."
+attributed = source_attribution_guardrail(web_answer, [web_result])
+check(
+    "web answer without attribution gets source note",
+    "reuters.com" in attributed and "discovery leads" in attributed,
+)
+
+already_attributed = "According to reuters.com, Nvidia announced a new chip."
+check(
+    "web answer with attribution is untouched",
+    source_attribution_guardrail(already_attributed, [web_result])
+    == already_attributed,
+)
+
+check(
+    "apply_guardrails applies source attribution",
+    "reuters.com" in apply_guardrails(web_answer, [web_result]),
+)
+
+check(
+    "source labels are distinct and success-only",
+    sources_from_results(
+        [
+            web_result,
+            {"success": True, "source": "FRED"},
+            {"success": True, "source": "FRED"},
+            {"success": False, "source": "Web search"},
+        ]
+    )
+    == ["Web search (tavily)", "FRED"],
+)
+
+# 11. New failure types remain honest.
+missing_config = iteration_fallback(
+    [{"success": False, "error_type": "missing_credentials"}]
+)
+check(
+    "unconfigured source is reported plainly",
+    "not configured for this deployment" in missing_config,
+)
+
+budget_fallback = iteration_fallback(
+    [
+        {"success": True, "source": "FRED"},
+        {"success": False, "error_type": "tool_budget_reached"},
+    ]
+)
+check(
+    "budget fallback admits partial evidence",
+    "partial evidence" in budget_fallback and "tool-call ceiling" in budget_fallback,
 )
 
 failed = [name for name, passed, _ in results if not passed]

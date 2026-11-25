@@ -3,6 +3,7 @@ import sys
 
 from pydantic import BaseModel
 from agent import execute
+from source_tools import source_status
 
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
@@ -27,7 +28,7 @@ app = FastAPI(
         "An agentic AI research assistant compatible with Groq, OpenAI, "
         "Google Gemini and Ollama models."
     ),
-    version="1.1.0",
+    version="1.2.0",
 )
 
 # Restrict browser access to the configured frontend origins. Add deployed UI
@@ -93,7 +94,7 @@ def health():
     return {
         "status": "healthy",
         "service": "financial-analyst-api",
-        "version": "1.1.0"
+        "version": "1.2.0"
     }
 
 
@@ -101,13 +102,23 @@ def health():
 def version():
     """Diagnostic: which commit, model and code path are actually running."""
     provider, model = _active_model()
+    status = source_status()
     return {
-        "service_version": "1.1.0",
+        "service_version": "1.2.0",
         "git_commit": os.getenv("RENDER_GIT_COMMIT"),
         "guardrails_loaded": "guardrails" in sys.modules,
+        "source_tools_loaded": "source_tools" in sys.modules,
+        "fred_configured": status["fred"],
+        "web_search_provider": status["web_search_provider"],
         "llm_provider": provider,
         "model": model,
     }
+
+
+@app.get("/sources")
+def sources():
+    """Report configured evidence sources without exposing any credentials."""
+    return source_status()
 
 @app.get("/stock/search/{symbol}")
 def stock_search(symbol: str):
