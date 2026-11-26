@@ -28,7 +28,10 @@ services:
       - key: GROQ_STT_MODEL
         value: whisper-large-v3-turbo
       - key: CVI_LLM_MAX_RETRIES
-        value: "0"
+        # Groq free on-demand allows ~1000 output tokens/minute. Structured
+        # nodes can request ~750, so let the SDK honour short Retry-After
+        # values instead of failing the participant turn on a 429.
+        value: "2"
       - key: CVI_LLM_REQUEST_TIMEOUT
         value: "12"
       - key: RESEARCHER_ACCESS_CODE

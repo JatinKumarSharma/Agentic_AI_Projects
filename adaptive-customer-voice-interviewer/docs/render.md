@@ -29,6 +29,10 @@ committed file.** Enter them only in the Render dashboard.
 - Participant microphone audio is still streamed to the **server** for turn
   detection; the browser does not own transcription or VAD logic.
 - Keep the demo pool small (5–10 sessions) so the Groq key stays rate-safe.
+- Groq's free on-demand tier allows about 1000 output tokens per minute. A
+  structured node can request about 750, so `CVI_LLM_MAX_RETRIES` is set to `2`
+  in the blueprint; the Groq SDK then honours short `Retry-After` values. The
+  SDK caps each wait at 60 seconds, which prevents multi-minute stalls.
 
 ## 1. Create the Neon database
 
