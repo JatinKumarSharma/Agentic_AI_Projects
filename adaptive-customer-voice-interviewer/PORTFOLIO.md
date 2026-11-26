@@ -2,7 +2,7 @@
 
 **One-line pitch:** An evidence-first voice research platform that turns adaptive LangGraph interviews into reports where every claim is traceable to the participant's exact words.
 
-**Live demo:** pending deployment  
+**Live demo:** https://cvi-portfolio.onrender.com/?demo=portfolio-demo<br>
 **Repository:** [adaptive-customer-voice-interviewer](https://github.com/JatinKumarSharma/Agentic_AI_Projects/tree/main/adaptive-customer-voice-interviewer)
 
 ---
