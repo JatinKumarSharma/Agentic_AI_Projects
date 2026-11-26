@@ -1,7 +1,7 @@
 
 import json
 
-from agent.llm import get_llm
+from agent.llm import get_llm, invoke_with_rate_limit_retry
 
 
 def generate_contextual_engagement(
@@ -55,7 +55,7 @@ ANSWER DECOMPOSITION:
 Spoken response:
 """
 
-    result = llm.invoke(prompt)
+    result = invoke_with_rate_limit_retry(llm, prompt)
 
     content = result.content
 

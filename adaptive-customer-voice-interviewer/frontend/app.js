@@ -37,7 +37,10 @@ const elements = {
     recoveryMessage: document.getElementById("recoveryMessage"),
     activityList: document.getElementById("activityList"),
     activityEmpty: document.getElementById("activityEmpty"),
-    interviewError: document.getElementById("interviewError")
+    interviewError: document.getElementById("interviewError"),
+    errorActions: document.getElementById("errorActions"),
+    retryProcessingButton: document.getElementById("retryProcessingButton"),
+    retryHint: document.getElementById("retryHint")
 };
 
 const state = {
@@ -64,6 +67,8 @@ const state = {
     listeningTurn: 0,
     speechEndedAt: null,
     responseSubmittedAt: null,
+    lastSubmittedTranscript: "",
+    responseAccepted: false,
     acknowledgementTimingRecorded: false,
     contextualTimingRecorded: false,
     nextQuestionTimingRecorded: false,
@@ -491,9 +496,11 @@ async function waitForResponseResult() {
         }
 
         if (result.status === "failed") {
-            throw new Error(
+            const error = new Error(
                 result.error || "Response processing failed."
             );
+            error.retryable = result.can_retry === true;
+            throw error;
         }
 
         if (result.status === "completed") {
@@ -996,6 +1003,7 @@ elements.consentCheckbox.addEventListener("change", () => {
 async function startInterview() {
     setBusy(true);
     elements.interviewError.textContent = "";
+    elements.errorActions.classList.add("hidden");
 
     try {
         const result = await apiRequest(
@@ -1076,6 +1084,7 @@ function enterListeningState(result, hint = null) {
 
     state.currentAction = result;
     elements.interviewError.textContent = "";
+    elements.errorActions.classList.add("hidden");
     elements.interviewStatus.textContent = "LISTENING";
     elements.transcriptText.value = "";
     elements.transcriptStatus.textContent = "No response yet";
@@ -1679,6 +1688,7 @@ async function startBatchVoiceRecording(automatic = false) {
     state.automaticRecording = automatic;
 
     elements.interviewError.textContent = "";
+    elements.errorActions.classList.add("hidden");
     elements.transcriptText.value = "";
     elements.transcriptStatus.textContent = "Preparing microphone...";
     elements.voiceStatus.textContent = "Connecting to microphone...";
@@ -1833,7 +1843,9 @@ async function submitRecordedAudio() {
         await handleInterviewAction(result);
 
     } catch (error) {
-        showInterviewError(error.message);
+        showInterviewError(error.message, {
+            retryable: error.retryable === true
+        });
 
     } finally {
         cleanupVoiceResources();
@@ -1877,6 +1889,7 @@ async function startVoiceRecording(automatic = false) {
     state.voiceResponseHandlerStarted = false;
 
     elements.interviewError.textContent = "";
+    elements.errorActions.classList.add("hidden");
     elements.transcriptText.value = "";
     elements.transcriptStatus.textContent = "Connecting to speech service...";
     elements.voiceStatus.textContent = "Connecting to microphone...";
@@ -2265,7 +2278,9 @@ async function continueAfterVoiceSubmission() {
         await handleInterviewAction(result);
 
     } catch (error) {
-        showInterviewError(error.message);
+        showInterviewError(error.message, {
+            retryable: error.retryable === true
+        });
 
     } finally {
         state.voiceSocket = null;
@@ -2352,6 +2367,7 @@ elements.submitResponseButton.addEventListener("click", async () => {
 
     setBusy(true);
     elements.interviewError.textContent = "";
+    elements.errorActions.classList.add("hidden");
     elements.interviewStatus.textContent = "PROCESSING";
     elements.voiceStatus.textContent = "Processing your response...";
 
@@ -2380,7 +2396,9 @@ elements.submitResponseButton.addEventListener("click", async () => {
         await handleInterviewAction(result);
 
     } catch (error) {
-        showInterviewError(error.message);
+        showInterviewError(error.message, {
+            retryable: error.retryable === true
+        });
     } finally {
         setBusy(false);
         updateSubmitButton();
@@ -2550,15 +2568,63 @@ function setBusy(isBusy) {
     }
 }
 
-function showInterviewError(message) {
+function showInterviewError(message, options = {}) {
     const detail = (message || "").trim();
+    const retryable = options.retryable === true;
 
     hideQuestionLoading();
     elements.interviewError.textContent =
-        detail || "Something went wrong. Please try again.";
-    elements.voiceStatus.textContent =
-        "I couldn't finish that step. Please try again.";
+        detail
+            ? `I couldn't finish that step: ${detail}`
+            : "Something went wrong. Please try again.";
+    elements.voiceStatus.textContent = retryable
+        ? "Your answer was saved. Retry processing to continue."
+        : detail
+            ? `Couldn't finish that step: ${detail}`
+            : "I couldn't finish that step. Please try again.";
+
+    elements.errorActions.classList.toggle("hidden", !retryable);
+    elements.retryProcessingButton.disabled = false;
 }
+
+
+async function retryResponseProcessing() {
+    if (state.busy) return;
+
+    setBusy(true);
+    elements.interviewError.textContent = "";
+    elements.errorActions.classList.add("hidden");
+    elements.interviewStatus.textContent = "PROCESSING";
+    elements.voiceStatus.textContent = "Retrying your saved response...";
+
+    let scheduled = false;
+
+    try {
+        await apiRequest(
+            `/sessions/${encodeURIComponent(state.sessionId)}` +
+            `/responses/retry`,
+            { method: "POST" }
+        );
+        scheduled = true;
+
+        const result = await waitForResponseResult();
+        await handleInterviewAction(result);
+
+    } catch (error) {
+        showInterviewError(error.message, {
+            retryable: scheduled && error.retryable === true
+        });
+
+    } finally {
+        setBusy(false);
+        updateSubmitButton();
+    }
+}
+
+elements.retryProcessingButton.addEventListener(
+    "click",
+    retryResponseProcessing
+);
 
 
 // --------------------------------------------------

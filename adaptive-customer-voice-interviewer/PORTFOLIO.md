@@ -43,7 +43,7 @@ Customer interviews usually lose the connection between what a person said and w
 
 | Check | Result |
 |---|---:|
-| Offline test suite | **425 passed, 4 skipped** |
+| Offline test suite | **435 passed, 4 skipped** |
 | First question with fast provider profile | **~4–6 seconds** |
 | Response processing in successful live smoke | **~4 seconds** |
 | Contextual engagement queued after submission | **~2.7 seconds** |

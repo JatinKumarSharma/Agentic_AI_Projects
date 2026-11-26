@@ -318,3 +318,131 @@ def test_worker_mode_voice_events_come_from_durable_outbox():
         "events": [],
         "pending": 2,
     }
+
+
+FAILED_PAYLOAD = {
+    "response_id": "response_retry_test",
+    "transcript": "The setup was simple.",
+    "turn": 1,
+    "question": "What do you think about the product?",
+    "submitted_monotonic_ms": 1234,
+}
+
+
+def _failed_worker_job(result=None):
+    return {
+        "job_id": "job_failed_response",
+        "job_type": "process_response",
+        "session_id": SESSION_ID,
+        "status": "completed",
+        "payload": dict(FAILED_PAYLOAD),
+        "result": result or {
+            "status": "failed",
+            "error": "Response processing failed: RateLimitError",
+        },
+        "error": None,
+    }
+
+
+class FakeInterrupt:
+    def __init__(self, value):
+        self.value = value
+
+
+class FakeSnapshot:
+    def __init__(self, interrupts=()):
+        self.interrupts = tuple(interrupts)
+
+
+def test_failed_status_exposes_safe_retry_flag():
+    api.repository.jobs["job_failed_response"] = _failed_worker_job()
+
+    result = api.get_response_status(SESSION_ID)
+
+    assert result["status"] == "failed"
+    assert "RateLimitError" in result["error"]
+    assert result["can_retry"] is True
+
+
+def test_retry_reuses_original_response_payload(monkeypatch):
+    api.repository.jobs["job_failed_response"] = _failed_worker_job()
+    monkeypatch.setattr(
+        api.graph,
+        "get_state",
+        lambda config: FakeSnapshot(
+            [
+                FakeInterrupt(
+                    {
+                        "type": "await_consumer_response",
+                        "turn": 1,
+                        "question": FAILED_PAYLOAD["question"],
+                    }
+                )
+            ]
+        ),
+    )
+
+    result = api.retry_response_processing(SESSION_ID)
+
+    assert result["status"] == "processing"
+    assert result["response_id"] == FAILED_PAYLOAD["response_id"]
+    assert result["mode"] == "resume"
+
+    jobs = [job for job in api.repository.jobs.values() if job["status"] == "queued"]
+    assert len(jobs) == 1
+
+    retry_job = jobs[0]
+    assert retry_job["job_id"] != "job_failed_response"
+    assert retry_job["payload"]["response_id"] == FAILED_PAYLOAD["response_id"]
+    assert retry_job["payload"]["transcript"] == FAILED_PAYLOAD["transcript"]
+    assert retry_job["payload"]["retry_of_job_id"] == "job_failed_response"
+    assert api.response_jobs[SESSION_ID]["status"] == "processing"
+
+
+def test_retry_continues_from_checkpoint_when_interrupt_is_gone(monkeypatch):
+    api.repository.jobs["job_failed_response"] = _failed_worker_job()
+    monkeypatch.setattr(
+        api.graph,
+        "get_state",
+        lambda config: FakeSnapshot(),
+    )
+
+    result = api.retry_response_processing(SESSION_ID)
+
+    assert result["mode"] == "continue"
+
+
+def test_retry_rejects_session_without_failed_response():
+    with pytest.raises(HTTPException) as exc:
+        api.retry_response_processing(SESSION_ID)
+
+    assert exc.value.status_code == 409
+    assert exc.value.detail == "There is no failed response to retry."
+
+
+def test_offline_retry_schedules_original_payload(monkeypatch):
+    api.WORKER_ENABLED = False
+    api.response_jobs[SESSION_ID] = {
+        "status": "failed",
+        "error": "Response processing failed: RateLimitError",
+        "payload": dict(FAILED_PAYLOAD),
+    }
+    submitted = []
+    monkeypatch.setattr(
+        api.graph,
+        "get_state",
+        lambda config: FakeSnapshot(),
+    )
+    monkeypatch.setattr(
+        api.response_executor,
+        "submit",
+        lambda function, *args: submitted.append((function, args)),
+    )
+
+    result = api.retry_response_processing(SESSION_ID)
+
+    assert result["status"] == "processing"
+    assert result["mode"] == "continue"
+    assert len(submitted) == 1
+    assert submitted[0][0] is api.process_response_in_background
+    assert submitted[0][1][1]["response_id"] == FAILED_PAYLOAD["response_id"]

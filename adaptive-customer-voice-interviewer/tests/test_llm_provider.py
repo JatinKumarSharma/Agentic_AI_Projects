@@ -1,3 +1,5 @@
+from types import SimpleNamespace
+
 import pytest
 from pydantic import BaseModel
 
@@ -189,3 +191,120 @@ def test_invoke_output_limit_is_provider_neutral(monkeypatch):
 
     monkeypatch.setenv("CVI_LLM_PROVIDER", "ollama")
     assert llm.invoke_output_limit(900) == {}
+
+
+class FakeRateLimitError(Exception):
+    def __init__(self, message, headers=None):
+        super().__init__(message)
+        self.response = SimpleNamespace(
+            status_code=429,
+            headers=headers or {},
+        )
+
+
+class FakeFlakyModel:
+    def __init__(self, errors, result="ok"):
+        self.errors = list(errors)
+        self.result = result
+        self.calls = 0
+
+    def invoke(self, prompt):
+        self.calls += 1
+
+        if self.errors:
+            raise self.errors.pop(0)
+
+        return self.result
+
+
+def test_rate_limit_retry_honours_retry_after_header(monkeypatch):
+    sleeps = []
+    monkeypatch.setattr(llm.time, "sleep", lambda value: sleeps.append(value))
+
+    error = FakeRateLimitError(
+        "Rate limit reached",
+        headers={"retry-after": "3.48"},
+    )
+    model = FakeFlakyModel([error])
+
+    result = llm.invoke_with_rate_limit_retry(
+        model,
+        "prompt",
+        retries=2,
+        max_delay=25,
+    )
+
+    assert result == "ok"
+    assert model.calls == 2
+    assert sleeps == [3.48]
+
+
+def test_rate_limit_retry_parses_provider_message(monkeypatch):
+    sleeps = []
+    monkeypatch.setattr(llm.time, "sleep", lambda value: sleeps.append(value))
+
+    error = FakeRateLimitError(
+        "Please try again in 18s. Limit 1000, Used 551, Requested 749.",
+    )
+    model = FakeFlakyModel([error])
+
+    result = llm.invoke_with_rate_limit_retry(
+        model,
+        "prompt",
+        retries=2,
+        max_delay=25,
+    )
+
+    assert result == "ok"
+    assert sleeps == [18.0]
+
+
+def test_rate_limit_retry_caps_long_provider_wait(monkeypatch):
+    sleeps = []
+    monkeypatch.setattr(llm.time, "sleep", lambda value: sleeps.append(value))
+
+    error = FakeRateLimitError(
+        "Quota exceeded",
+        headers={"retry-after": "3600"},
+    )
+    model = FakeFlakyModel([error])
+
+    llm.invoke_with_rate_limit_retry(
+        model,
+        "prompt",
+        retries=1,
+        max_delay=25,
+    )
+
+    assert sleeps == [25.0]
+
+
+def test_rate_limit_retry_does_not_retry_other_errors(monkeypatch):
+    sleeps = []
+    monkeypatch.setattr(llm.time, "sleep", lambda value: sleeps.append(value))
+
+    model = FakeFlakyModel([ValueError("bad prompt")])
+
+    with pytest.raises(ValueError, match="bad prompt"):
+        llm.invoke_with_rate_limit_retry(model, "prompt", retries=2)
+
+    assert model.calls == 1
+    assert sleeps == []
+
+
+def test_rate_limit_retry_exhausts_attempts(monkeypatch):
+    sleeps = []
+    monkeypatch.setattr(llm.time, "sleep", lambda value: sleeps.append(value))
+
+    errors = [
+        FakeRateLimitError("Rate limit", headers={"retry-after": "1"}),
+        FakeRateLimitError("Rate limit", headers={"retry-after": "1"}),
+        FakeRateLimitError("Rate limit", headers={"retry-after": "1"}),
+    ]
+    model = FakeFlakyModel(errors)
+
+    with pytest.raises(FakeRateLimitError):
+        llm.invoke_with_rate_limit_retry(model, "prompt", retries=2)
+
+    assert model.calls == 3
+    assert sleeps == [1.0, 1.0]

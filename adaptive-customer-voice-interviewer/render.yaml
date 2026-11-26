@@ -36,6 +36,14 @@ services:
         # Keep each structured request small enough that a whole interview
         # turn fits inside the shared free-tier output budget.
         value: "400"
+      - key: CVI_LLM_RATE_LIMIT_RETRIES
+        # Application-level 429 handling at the LLM boundary. The SDK retry
+        # budget can be exhausted during a burst of structured calls.
+        value: "3"
+      - key: CVI_LLM_RATE_LIMIT_MAX_DELAY_SECONDS
+        # Honour Groq's Retry-After without letting a daily-quota response
+        # hang the participant turn.
+        value: "25"
       - key: CVI_LLM_REQUEST_TIMEOUT
         value: "12"
       - key: RESEARCHER_ACCESS_CODE

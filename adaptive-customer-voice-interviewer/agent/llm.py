@@ -6,9 +6,16 @@ adapter without changing research logic or unit tests.
 """
 
 import os
-from typing import Type
+import re
+import time
+from typing import Any, Type
 
 from pydantic import BaseModel
+
+from agent.observability import get_logger
+
+
+logger = get_logger(__name__)
 
 
 def _llm_provider() -> str:
@@ -59,6 +66,119 @@ def _output_token_limit() -> int:
     """
 
     return _env_int("CVI_LLM_MAX_OUTPUT_TOKENS", 999)
+
+
+def _rate_limit_retries() -> int:
+    """Number of application-level retries after the first rate-limit error."""
+
+    return _env_int("CVI_LLM_RATE_LIMIT_RETRIES", 3)
+
+
+def _rate_limit_max_delay() -> float:
+    """Longest single wait we will make a participant tolerate."""
+
+    return _env_float("CVI_LLM_RATE_LIMIT_MAX_DELAY_SECONDS", 25.0)
+
+
+def is_rate_limit_error(error: BaseException) -> bool:
+    """Recognize provider rate-limit errors without importing a provider SDK."""
+
+    if type(error).__name__ == "RateLimitError":
+        return True
+
+    if getattr(error, "status_code", None) == 429:
+        return True
+
+    response = getattr(error, "response", None)
+    return getattr(response, "status_code", None) == 429
+
+
+def _retry_delay(error: BaseException, max_delay: float) -> float:
+    """Read Retry-After from the response or provider error text."""
+
+    response = getattr(error, "response", None)
+    headers = getattr(response, "headers", None)
+
+    if headers is not None:
+        try:
+            retry_ms = headers.get("retry-after-ms")
+            if retry_ms is not None:
+                value = float(retry_ms) / 1000
+                if value > 0:
+                    return min(value, max_delay)
+        except (AttributeError, TypeError, ValueError):
+            pass
+
+        try:
+            retry_after = headers.get("retry-after")
+            if retry_after is not None:
+                value = float(retry_after)
+                if value > 0:
+                    return min(value, max_delay)
+        except (AttributeError, TypeError, ValueError):
+            pass
+
+    # Groq also includes the wait in the error message. Parsing it keeps the
+    # retry correct when an SDK does not expose the response headers cleanly.
+    match = re.search(
+        r"try again in\s+([0-9]+(?:\.[0-9]+)?)\s*s",
+        str(error),
+        flags=re.IGNORECASE,
+    )
+
+    if match:
+        try:
+            return min(float(match.group(1)), max_delay)
+        except ValueError:
+            pass
+
+    return min(1.0, max_delay)
+
+
+def invoke_with_rate_limit_retry(
+    model: Any,
+    prompt: Any,
+    *,
+    retries: int | None = None,
+    max_delay: float | None = None,
+) -> Any:
+    """Invoke an LLM, retrying bounded provider rate limits.
+
+    The Groq SDK already retries 429s when configured, but an application
+    boundary is required for deployments where the SDK retry budget is
+    exhausted or unavailable. Waits honour ``Retry-After`` and are capped so a
+    daily-quota response cannot hang a live interview turn.
+    """
+
+    retry_count = _rate_limit_retries() if retries is None else retries
+    delay_cap = _rate_limit_max_delay() if max_delay is None else max_delay
+
+    if retry_count < 0:
+        raise ValueError("retries cannot be negative.")
+    if delay_cap <= 0:
+        raise ValueError("max_delay must be greater than zero.")
+
+    for attempt in range(retry_count + 1):
+        try:
+            return model.invoke(prompt)
+
+        except Exception as error:
+            if not is_rate_limit_error(error) or attempt == retry_count:
+                raise
+
+            delay = _retry_delay(error, delay_cap)
+
+            logger.warning(
+                "llm_rate_limit_retry",
+                extra={
+                    "attempt": attempt + 1,
+                    "retry_delay_seconds": round(delay, 2),
+                },
+            )
+
+            time.sleep(delay)
+
+    raise RuntimeError("Unreachable rate-limit retry state.")
 
 
 PURPOSE_DEFAULT_TEMPERATURES = {
