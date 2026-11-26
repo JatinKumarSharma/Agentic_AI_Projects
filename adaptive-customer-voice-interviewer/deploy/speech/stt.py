@@ -140,6 +140,56 @@ class FasterWhisperSTTEngine(STTEngine):
         }
 
 
+class GroqSTTEngine(STTEngine):
+    """Hosted STT engine that delegates to CVI's provider boundary.
+
+    This keeps turn detection on the server while avoiding local Whisper
+    models on constrained hosts. The research package is imported lazily so
+    the standalone local speech image remains independent.
+    """
+
+    name = "groq"
+
+    def __init__(self, provider=None):
+        self._provider = provider
+
+    @property
+    def provider(self):
+        if self._provider is None:
+            from agent.voice.stt_providers import create_stt_provider
+
+            self._provider = create_stt_provider("groq")
+
+        return self._provider
+
+    def transcribe(
+        self,
+        wav: bytes,
+        *,
+        language: str | None = None,
+        prompt: str | None = None,
+    ) -> dict:
+        result = self.provider.transcribe(
+            wav,
+            filename="segment.wav",
+            language=language,
+            prompt=prompt,
+        )
+
+        metadata = dict(result.metadata or {})
+        metadata["engine"] = self.name
+
+        return {
+            "text": result.text,
+            "language": result.language or language,
+            "confidence": result.confidence,
+            "metadata": metadata,
+        }
+
+    def warm(self) -> dict:
+        return {"engine": self.name, "status": "ready"}
+
+
 _engine_cache: dict[tuple, STTEngine] = {}
 
 
@@ -149,7 +199,7 @@ def create_stt_engine(name: str | None = None) -> STTEngine:
         "faster-whisper",
     )).strip().lower()
 
-    if provider_name != "faster-whisper":
+    if provider_name not in {"faster-whisper", "groq"}:
         raise ValueError(
             f"Unsupported speech STT engine: {provider_name}"
         )
@@ -159,9 +209,13 @@ def create_stt_engine(name: str | None = None) -> STTEngine:
         os.getenv("CVI_LOCAL_STT_MODEL", "small"),
         os.getenv("CVI_LOCAL_STT_DEVICE", "cpu"),
         os.getenv("CVI_LOCAL_STT_COMPUTE_TYPE", "int8"),
+        os.getenv("GROQ_STT_MODEL", "whisper-large-v3-turbo"),
     )
 
     if key not in _engine_cache:
-        _engine_cache[key] = FasterWhisperSTTEngine()
+        if provider_name == "groq":
+            _engine_cache[key] = GroqSTTEngine()
+        else:
+            _engine_cache[key] = FasterWhisperSTTEngine()
 
     return _engine_cache[key]

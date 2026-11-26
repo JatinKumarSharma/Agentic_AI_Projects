@@ -1,0 +1,33 @@
+# Single-container free demo image for Render.
+# Build target is `render`; Render calls the CMD below.
+FROM python:3.13-slim AS base
+
+ENV PYTHONDONTWRITEBYTECODE=1 \
+    PYTHONUNBUFFERED=1 \
+    PIP_NO_CACHE_DIR=1 \
+    PIP_DISABLE_PIP_VERSION_CHECK=1
+
+WORKDIR /app
+
+COPY requirements.txt ./
+RUN pip install --no-cache-dir -r requirements.txt
+
+COPY agent ./agent
+COPY deploy ./deploy
+COPY frontend ./frontend
+COPY scripts ./scripts
+COPY api.py ./
+
+
+FROM base AS render
+
+ENV PORT=10000
+
+RUN useradd --create-home --uid 10001 --shell /usr/sbin/nologin cvi \
+    && chown -R cvi:cvi /app
+
+USER cvi
+
+EXPOSE 10000
+
+CMD ["python", "-m", "scripts.render_start"]

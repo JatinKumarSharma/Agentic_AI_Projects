@@ -6,10 +6,23 @@
 
 ---
 
-## Current launch profile: VPS + domain + rate-safe Groq
+## Portfolio demo launch profile: Render + Neon
 
-Use this section for the public launch. The long design notes below remain as
-implementation history.
+Use this profile when there is no custom domain and no paid hosting:
+
+- Render free web service with a public `onrender.com` HTTPS URL.
+- External Neon free PostgreSQL for authoritative state.
+- Groq for LLM/STT, browser TTS, and lightweight server-side energy VAD.
+- Migrations, worker, speech bridge, and API in one container.
+
+See [`render.md`](render.md) for the complete setup, secrets, demo pool, and
+smoke test. The VPS section below remains the strict full-production profile.
+
+---
+
+## Production-grade VPS profile: VPS + domain + rate-safe Groq
+
+The long design notes below remain as implementation history.
 
 Prerequisites:
 
