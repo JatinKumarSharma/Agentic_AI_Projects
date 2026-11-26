@@ -1,0 +1,5 @@
+fastapi
+uvicorn[standard]
+faster-whisper
+piper-tts==1.8.0
+silero-vad==5.1.2

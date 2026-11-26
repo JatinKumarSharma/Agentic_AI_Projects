@@ -1,0 +1,36 @@
+services:
+  api:
+    command:
+      - uvicorn
+      - api:app
+      - --host
+      - 0.0.0.0
+      - --port
+      - "8000"
+      - --reload
+    ports:
+      - "8000:8000"
+    environment:
+      CVI_LOG_FORMAT: text
+    volumes:
+      - ./agent:/app/agent:ro
+      - ./frontend:/app/frontend:ro
+      - ./api.py:/app/api.py:ro
+      - cvi-data:/data
+
+  test:
+    build:
+      context: .
+      target: test
+    image: cvi-test:local
+    env_file: .env
+    environment:
+      CVI_READ_MODEL_DB: /tmp/cvi-test.sqlite3
+      GROQ_API_KEY: dummy-for-offline-tests
+    volumes:
+      - ./agent:/app/agent:ro
+      - ./deploy:/app/deploy:ro
+      - ./frontend:/app/frontend:ro
+      - ./api.py:/app/api.py:ro
+      - ./tests:/app/tests:ro
+    restart: "no"
