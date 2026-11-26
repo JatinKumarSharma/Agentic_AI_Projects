@@ -102,4 +102,11 @@ def ensure_tenant_audit_schema(connection: Any) -> None:
 
 
 def __getattr__(name: str):
-    return getattr(_impl, name)
+    try:
+        return getattr(_impl, name)
+    except AttributeError:
+        # Pure state-shaping helpers live in the SQLite adapter even when the
+        # configured backend is PostgreSQL. They do not touch a database and
+        # are part of the shared repository contract, so keep them available
+        # through this compatibility facade.
+        return getattr(_sqlite, name)
