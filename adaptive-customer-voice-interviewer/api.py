@@ -907,6 +907,62 @@ def current_response_job(session_id: str) -> dict | None:
     return None
 
 
+def _latest_raw_response_job(session_id: str) -> dict | None:
+    """Return the raw response job, including its original payload."""
+
+    if WORKER_ENABLED:
+        return repository.latest_job(
+            session_id=session_id,
+            job_type=job_service.PROCESS_RESPONSE,
+            tenant_id=_tenant_for_runtime(session_id),
+        )
+
+    return response_jobs.get(session_id)
+
+
+def _is_failed_response_job(job: dict | None) -> bool:
+    """Recognize both native and worker-wrapped response failures."""
+
+    if not job:
+        return False
+
+    if job.get("status") == "failed":
+        return True
+
+    result = job.get("result")
+    return isinstance(result, dict) and result.get("status") == "failed"
+
+
+def _graph_waiting_for_response(session_id: str, payload: dict) -> bool:
+    """Return whether the graph is still parked on this exact response turn."""
+
+    try:
+        snapshot = graph.get_state(thread_config(session_id))
+    except Exception:
+        return False
+
+    for interrupt in getattr(snapshot, "interrupts", ()) or ():
+        value = getattr(interrupt, "value", None)
+
+        if not isinstance(value, dict):
+            continue
+
+        if value.get("type") != "await_consumer_response":
+            continue
+
+        try:
+            same_turn = int(value.get("turn") or 0) == int(
+                payload.get("turn") or 0
+            )
+        except (TypeError, ValueError):
+            same_turn = False
+
+        if same_turn and value.get("question") == payload.get("question"):
+            return True
+
+    return False
+
+
 EXPIRED_LINK_MESSAGE = (
     "This interview link has expired. Please ask for a fresh interview link."
 )
@@ -1410,8 +1466,16 @@ def process_response_in_background(
 
             final_state = None
 
+            if response_event.get("retry_mode") == "continue":
+                # The graph already accepted this response before failing.
+                # `None` resumes from the latest checkpoint without replaying
+                # the interrupt and appending a duplicate response record.
+                stream_input = None
+            else:
+                stream_input = Command(resume=response_event)
+
             stream = graph.stream(
-                Command(resume=response_event),
+                stream_input,
                 config=config,
                 stream_mode=["custom", "values"],
             )
@@ -1590,12 +1654,16 @@ def process_response_in_background(
             {"error_type": type(exc).__name__},
         )
 
+        error_detail = str(exc).strip()
+
         response_jobs[session_id] = {
             "status": "failed",
             "error": (
                 f"Response processing failed: "
                 f"{type(exc).__name__}"
+                + (f" — {error_detail[:240]}" if error_detail else "")
             ),
+            "payload": response_event,
         }
 
         _record_timing(
@@ -2420,6 +2488,7 @@ def schedule_response_submission(
 
     response_jobs[session_id] = {
         "status": "processing",
+        "payload": response_event,
     }
 
     voice_output_queues.setdefault(
@@ -2443,6 +2512,7 @@ def schedule_response_submission(
                 max_attempts=1,
                 unique_active=True,
             )
+            response_jobs[session_id]["job_id"] = scheduled_job_id
         else:
             response_executor.submit(
                 process_response_in_background,
@@ -2454,6 +2524,7 @@ def schedule_response_submission(
         response_jobs[session_id] = {
             "status": "failed",
             "error": type(exc).__name__,
+            "payload": response_event,
         }
         raise HTTPException(
             status_code=409,
@@ -2464,6 +2535,7 @@ def schedule_response_submission(
         response_jobs[session_id] = {
             "status": "failed",
             "error": type(exc).__name__,
+            "payload": response_event,
         }
 
         raise HTTPException(
@@ -2501,6 +2573,118 @@ def submit_response(
         http_request=http_request,
     )
 
+
+@app.post("/sessions/{session_id}/responses/retry", status_code=202)
+def retry_response_processing(
+    session_id: str,
+    http_request: Request = None,
+):
+    """Re-run a failed response without recording a duplicate answer."""
+
+    _require_participant_session(
+        session_id,
+        http_request=http_request,
+    )
+
+    if has_processing_response_job(session_id):
+        raise HTTPException(
+            status_code=409,
+            detail="A response is already being processed.",
+        )
+
+    raw_job = _latest_raw_response_job(session_id)
+
+    if not _is_failed_response_job(raw_job):
+        raise HTTPException(
+            status_code=409,
+            detail="There is no failed response to retry.",
+        )
+
+    payload = dict(raw_job.get("payload") or {})
+    response_id = payload.get("response_id")
+
+    if not response_id:
+        raise HTTPException(
+            status_code=409,
+            detail="The failed response cannot be retried safely.",
+        )
+
+    retry_payload = dict(payload)
+    retry_payload["retry_mode"] = (
+        "resume"
+        if _graph_waiting_for_response(session_id, payload)
+        else "continue"
+    )
+    retry_payload["retry_of_job_id"] = raw_job.get("job_id")
+
+    job_id = job_service.new_job_id(job_service.PROCESS_RESPONSE)
+
+    response_jobs[session_id] = {
+        "status": "processing",
+        "payload": retry_payload,
+        "job_id": job_id,
+    }
+
+    try:
+        if WORKER_ENABLED:
+            repository.enqueue_job(
+                job_id=job_id,
+                job_type=job_service.PROCESS_RESPONSE,
+                session_id=session_id,
+                payload=retry_payload,
+                tenant_id=_tenant_for_runtime(session_id),
+                max_attempts=1,
+                unique_active=True,
+            )
+        else:
+            response_executor.submit(
+                process_response_in_background,
+                session_id,
+                retry_payload,
+            )
+
+    except DuplicateJobError as exc:
+        response_jobs[session_id] = {
+            "status": "failed",
+            "error": type(exc).__name__,
+            "payload": payload,
+        }
+        raise HTTPException(
+            status_code=409,
+            detail="A response is already being processed.",
+        ) from exc
+
+    except Exception as exc:
+        response_jobs[session_id] = {
+            "status": "failed",
+            "error": type(exc).__name__,
+            "payload": payload,
+        }
+        raise HTTPException(
+            status_code=500,
+            detail="Could not schedule response retry.",
+        ) from exc
+
+    read_model.record_event(
+        session_id,
+        "response_processing_retry_requested",
+        {
+            "response_id": response_id,
+            "job_id": job_id,
+            "retry_of_job_id": raw_job.get("job_id"),
+            "mode": retry_payload["retry_mode"],
+        },
+    )
+
+    return {
+        "status": "processing",
+        "session_id": session_id,
+        "response_id": response_id,
+        "job_id": job_id,
+        "mode": retry_payload["retry_mode"],
+    }
+
+
 @app.get("/sessions/{session_id}/status")
 def get_response_status(
     session_id: str,
@@ -2533,10 +2717,17 @@ def get_response_status(
         }
 
     if job["status"] == "failed":
+        raw = _latest_raw_response_job(session_id)
+        payload = (raw or {}).get("payload") or {}
+        can_retry = bool(payload.get("response_id")) and not (
+            has_processing_response_job(session_id)
+        )
+
         return {
             "status": "failed",
             "session_id": session_id,
             "error": job.get("error"),
+            "can_retry": can_retry,
         }
 
     return {

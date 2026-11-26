@@ -34,8 +34,12 @@ committed file.** Enter them only in the Render dashboard.
   in the blueprint; the Groq SDK then honours short `Retry-After` values. The
   SDK caps each wait at 60 seconds, which prevents multi-minute stalls.
   `CVI_LLM_MAX_OUTPUT_TOKENS` is lowered to `400` so a structured node does not
-  consume most of that budget in one request. Self-hosted profiles keep the
-  provider default because they do not share a token budget.
+  consume most of that budget in one request. The application LLM boundary also
+  retries rate-limit errors with `CVI_LLM_RATE_LIMIT_RETRIES=3` and honours the
+  provider's `Retry-After`, capped by
+  `CVI_LLM_RATE_LIMIT_MAX_DELAY_SECONDS=25` so a daily-quota response cannot hang
+  a live turn. Self-hosted profiles keep the provider default because they do
+  not share a token budget.
 
 ## 1. Create the Neon database
 

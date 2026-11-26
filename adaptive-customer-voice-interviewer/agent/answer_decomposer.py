@@ -2,7 +2,7 @@ from dotenv import load_dotenv
 
 from typing import cast
 
-from agent.llm import get_structured_llm
+from agent.llm import get_structured_llm, invoke_with_rate_limit_retry
 
 from agent.state import InterviewState
 
@@ -347,7 +347,7 @@ IMPORTANT CONSTRAINTS
 
     result = cast(
         AnswerDecompositionSchema,
-        structured_llm.invoke(prompt)
+        invoke_with_rate_limit_retry(structured_llm, prompt)
     )
 
     logger.info("\n===== DECOMPOSER DEBUG =====")
