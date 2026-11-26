@@ -2,7 +2,11 @@ from dotenv import load_dotenv
 
 from typing import cast
 
-from agent.llm import get_structured_llm, invoke_with_rate_limit_retry
+from agent.llm import (
+    _llm_provider,
+    get_structured_llm,
+    invoke_with_rate_limit_retry,
+)
 
 from agent.state import InterviewState
 
@@ -59,7 +63,14 @@ def decompose_answer(state: InterviewState) -> dict:
     structured_llm = get_structured_llm(
         AnswerDecompositionSchema
     )
-        
+
+    fallback_structured_llm = None
+    if _llm_provider() == "groq":
+        fallback_structured_llm = get_structured_llm(
+            AnswerDecompositionSchema,
+            method="json_schema",
+        )
+
     prompt = f"""
 
 You are an expert customer research interview analysis system.
@@ -345,10 +356,44 @@ IMPORTANT CONSTRAINTS
 
 """
 
-    result = cast(
-        AnswerDecompositionSchema,
-        invoke_with_rate_limit_retry(structured_llm, prompt)
-    )
+    try:
+        result = cast(
+            AnswerDecompositionSchema,
+            invoke_with_rate_limit_retry(structured_llm, prompt)
+        )
+
+    except Exception as error:
+        if fallback_structured_llm is None:
+            raise
+
+        status_code = getattr(error, "status_code", None)
+        response = getattr(error, "response", None)
+        response_status = getattr(response, "status_code", None)
+
+        is_tool_use_failure = (
+            status_code == 400
+            or response_status == 400
+            or "tool_use_failed" in str(error)
+        )
+
+        if not is_tool_use_failure:
+            raise
+
+        logger.warning(
+            "answer_decomposer_structured_fallback",
+            extra={
+                "fallback_method": "json_schema",
+                "error_type": type(error).__name__,
+            },
+        )
+
+        result = cast(
+            AnswerDecompositionSchema,
+            invoke_with_rate_limit_retry(
+                fallback_structured_llm,
+                prompt
+            )
+        )
 
     logger.info("\n===== DECOMPOSER DEBUG =====")
     logger.info("debug_payload", extra={"parts": ["LATEST RESPONSE:", latest_response]})
