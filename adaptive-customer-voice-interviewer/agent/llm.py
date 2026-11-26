@@ -325,11 +325,15 @@ def invoke_output_limit(limit: int) -> dict:
     return {}
 
 
-def get_structured_llm(schema: Type[BaseModel]):
+def get_structured_llm(
+    schema: Type[BaseModel],
+    *,
+    method: str | None = None,
+):
     """Return a model configured to produce the supplied schema."""
 
     provider = _llm_provider()
-    kwargs = {"method": _structured_method(provider)}
+    kwargs = {"method": method or _structured_method(provider)}
 
     # langchain-ollama rejects every extra with_structured_output kwarg;
     # its output cap is already set as num_predict on the model itself.
