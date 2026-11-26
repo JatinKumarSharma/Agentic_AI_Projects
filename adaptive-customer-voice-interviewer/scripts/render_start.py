@@ -26,7 +26,10 @@ def configure_runtime_environment() -> None:
         "CVI_SPEECH_STREAM_URL": f"ws://127.0.0.1:{speech_port}/stream",
         "CVI_LOCAL_STT_URL": f"http://127.0.0.1:{speech_port}/transcribe",
         "CVI_SPEECH_STT_ENABLED": "true",
-        "CVI_SPEECH_STT_ENGINE": "groq",
+        "CVI_SPEECH_STT_ENGINE": "faster-whisper",
+        "CVI_LOCAL_STT_MODEL": "tiny.en",
+        "CVI_LOCAL_STT_DEVICE": "cpu",
+        "CVI_LOCAL_STT_COMPUTE_TYPE": "int8",
         "CVI_SPEECH_TTS_ENABLED": "false",
         "CVI_SPEECH_VAD_PROVIDER": "energy",
         "CVI_SPEECH_EMIT_AUDIO_SEGMENTS": "false",
@@ -61,7 +64,7 @@ def run_migrations() -> None:
 
 
 def start_speech_service(logger) -> threading.Thread:
-    """Run the lightweight server-side VAD/Groq STT bridge in a daemon thread."""
+    """Run the lightweight server-side VAD/STT speech bridge in a daemon thread."""
 
     import uvicorn
 

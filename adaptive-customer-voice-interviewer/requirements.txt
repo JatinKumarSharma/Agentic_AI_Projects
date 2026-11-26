@@ -8,6 +8,7 @@ pydantic
 
 fastapi
 uvicorn[standard]
+faster-whisper
 sarvamai==0.1.45
 websockets
 psycopg[binary]
