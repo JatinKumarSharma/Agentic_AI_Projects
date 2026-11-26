@@ -6,6 +6,69 @@
 
 ---
 
+## Current launch profile: VPS + domain + rate-safe Groq
+
+Use this section for the public launch. The long design notes below remain as
+implementation history.
+
+Prerequisites:
+
+- Docker and Docker Compose on the VPS.
+- DNS for the chosen domain pointing at the VPS.
+- TLS certificate/key in `deploy/certs/` or the proxy's secret store.
+- A rate-safe Groq key in the host secret store.
+- Long random PostgreSQL, researcher, and named-account credentials.
+
+Set the launch environment outside Git:
+
+```dotenv
+CVI_PERSISTENCE_BACKEND=postgresql
+CVI_MIGRATION_DATABASE_URL=postgresql://...
+CVI_RUNTIME_DATABASE_URL=postgresql://...
+CVI_BACKUP_DATABASE_URL=postgresql://...
+POSTGRES_PASSWORD=<generated owner password>
+CVI_RUNTIME_DB_PASSWORD=<generated runtime password>
+CVI_BACKUP_DB_PASSWORD=<generated backup password>
+CVI_LLM_PROVIDER=groq
+CVI_LLM_STRUCTURED_METHOD=function_calling
+GROQ_API_KEY=<rate-safe key>
+GROQ_MODEL=qwen/qwen3.8-27b
+CVI_EVALUATOR_MODEL=
+RESEARCHER_ACCESS_CODE=<generated researcher code>
+CVI_TENANT_ID=<production tenant>
+CVI_DEMO_LINK_TTL_MINUTES=15
+CVI_RATE_LIMIT_DEMO_PER_MINUTE=6
+```
+
+Deploy:
+
+```powershell
+docker compose -f compose.yaml -f compose.prod.yaml config --quiet
+docker compose -f compose.yaml -f compose.prod.yaml up -d --build
+```
+
+Public demo links are tokenless:
+
+```text
+https://<your-domain>/?demo=<slug>
+```
+
+Create a small pool of sessions with authenticated `POST /sessions`, each with
+the same `demo_slug`. The public broker `POST /demo/invites/{slug}` rotates one
+unclaimed session capability, sets a short deadline, records an event/audit
+entry, and returns the raw token only once in the response body. The frontend
+stores that capability in session storage and removes any raw token from the
+address bar. Never publish the `participant_url` returned by session creation.
+
+The participant welcome panel now requires explicit consent before
+**Begin interview**. The study's retention period and deletion contact must be
+published outside the repository before public traffic.
+
+See [`publication_checklist.md`](publication_checklist.md) for the complete
+go-live smoke test.
+
+---
+
 ## Phase 1 + migrations/backups + observability + tenant/audit + offline delivered
 
 Files added or changed:

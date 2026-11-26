@@ -88,6 +88,10 @@ class RateLimiter:
             "CVI_RATE_LIMIT_WEBSOCKET_PER_MINUTE",
             30,
         )
+        self.demo_limit = _env_int(
+            "CVI_RATE_LIMIT_DEMO_PER_MINUTE",
+            6,
+        )
         self._events: dict[str, deque[float]] = {}
         self._lock = Lock()
 

@@ -201,6 +201,11 @@ class ResearchSession(TypedDict):
     participant_token_hash: NotRequired[Optional[str]]
     participant_token_issued_at: NotRequired[Optional[str]]
 
+    # Optional public demo pool claim. `demo_slug` is a public pool name;
+    # `demo_claimed_at` prevents two visitors from receiving the same session.
+    demo_slug: NotRequired[Optional[str]]
+    demo_claimed_at: NotRequired[Optional[str]]
+
     status: Literal[
         "scheduled",
         "active",

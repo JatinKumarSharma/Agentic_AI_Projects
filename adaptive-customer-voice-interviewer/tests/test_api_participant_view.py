@@ -170,6 +170,49 @@ def test_participant_view_has_no_research_setup_form():
     assert "Voice input is unavailable" in script_response.text
 
 
+def test_participant_consent_gates_the_begin_button():
+    client = TestClient(api.app)
+    html_response = client.get("/")
+    script_response = client.get("/app.js")
+    style_response = client.get("/style.css")
+
+    assert 'id="consentPanel"' in html_response.text
+    assert 'id="consentCheckbox"' in html_response.text
+    assert 'id="consentError"' in html_response.text
+    assert "recorded, transcribed" in html_response.text
+    assert "retention period" in html_response.text
+    assert "deletion requests" in html_response.text
+
+    assert "consentGiven" in script_response.text
+    assert "updateBeginButton" in script_response.text
+    assert "!consentGiven()" in script_response.text
+    assert "elements.consentCheckbox.addEventListener" in script_response.text
+
+    assert ".consent-panel" in style_response.text
+    assert ".consent-choice" in style_response.text
+
+
+def test_participant_frontend_uses_tokenless_demo_invites():
+    client = TestClient(api.app)
+    script_response = client.get("/app.js")
+
+    for marker in (
+        "DEMO_INVITE_STORAGE_KEY",
+        "demoSlugFromUrl",
+        "/demo/invites/",
+        "writeStoredInvite",
+        "storedInviteIsFresh",
+        "history.replaceState",
+        "scrubParticipantTokenFromUrl",
+        "?demo=${encodeURIComponent(state.demoSlug)}",
+    ):
+        assert marker in script_response.text
+
+    assert "participant_token=" not in script_response.text.split(
+        "history.replaceState", 1
+    )[0]
+
+
 def test_voice_capture_is_automatic_with_manual_backup():
     client = TestClient(api.app)
 

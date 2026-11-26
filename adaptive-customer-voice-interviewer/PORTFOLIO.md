@@ -20,6 +20,8 @@ Customer interviews usually lose the connection between what a person said and w
 - A **two-layer conversational bridge** before every next question:
   - an immediate 1–3 word acknowledgement at speech end;
   - a warm, active reflection generated after decomposition while the graph prepares the next question.
+- **Tokenless rotating demo invites**: public `/?demo=<slug>` links exchange a slug for a short-lived capability without exposing raw tokens in the address bar.
+- **Consent-gated participation**: participants confirm recording, evidence use, access, retention, and deletion terms before the interview begins.
 - **Durable worker infrastructure**: repository-backed queue, fencing tokens, leases, heartbeats, tenant isolation, and an ack-based voice outbox.
 - **Hosted storage and observability**: PostgreSQL adapter, migrations, backups, least-privilege DB roles, structured logs, request IDs, and health checks.
 
@@ -54,7 +56,6 @@ Python, FastAPI, LangGraph, PostgreSQL, SQLite for offline tests, Docker Compose
 
 ## What I would add next
 
-- Public demo provisioning with rotating demo invite links.
-- Consent/retention controls and participant-facing privacy copy.
+- Published retention period and deletion contact for the deployed study.
 - Live dashboards for first-question latency, acknowledgement timing, and job failures.
-- A priced model tier or GPU-backed self-hosted model for predictable public traffic.
+- A rate-safe model tier or GPU-backed self-hosted model for predictable public traffic.
