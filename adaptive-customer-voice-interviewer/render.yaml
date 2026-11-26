@@ -1,0 +1,73 @@
+# Free, no-domain CVI demo on Render + Neon.
+# Create the Blueprint from adaptive-customer-voice-interviewer/render.yaml.
+# Secrets are entered in the Render dashboard; never commit them here.
+services:
+  - type: web
+    name: cvi-portfolio
+    runtime: docker
+    plan: free
+    region: oregon
+    rootDir: adaptive-customer-voice-interviewer
+    dockerfilePath: ./Dockerfile.render
+    healthCheckPath: /health/ready
+    envVars:
+      - key: CVI_PERSISTENCE_BACKEND
+        value: postgresql
+      - key: CVI_DATABASE_URL
+        sync: false
+      - key: CVI_TENANT_ID
+        value: cvi-portfolio
+      - key: CVI_LLM_PROVIDER
+        value: groq
+      - key: CVI_LLM_STRUCTURED_METHOD
+        value: function_calling
+      - key: GROQ_API_KEY
+        sync: false
+      - key: GROQ_MODEL
+        value: qwen/qwen3.8-27b
+      - key: GROQ_STT_MODEL
+        value: whisper-large-v3-turbo
+      - key: CVI_LLM_MAX_RETRIES
+        value: "0"
+      - key: CVI_LLM_REQUEST_TIMEOUT
+        value: "12"
+      - key: RESEARCHER_ACCESS_CODE
+        sync: false
+      - key: CVI_WORKER_ENABLED
+        value: "1"
+      - key: CVI_VOICE_LANGUAGE
+        value: en-IN
+      - key: CVI_VOICE_STT_PROVIDER
+        value: local
+      - key: CVI_VOICE_STT_FALLBACKS
+        value: local,typed
+      - key: CVI_VOICE_TTS_PROVIDER
+        value: browser
+      - key: CVI_VOICE_TTS_FALLBACKS
+        value: browser
+      - key: CVI_LOCAL_STT_URL
+        value: http://127.0.0.1:9000/transcribe
+      - key: CVI_LOCAL_STT_LANGUAGE
+        value: en-IN
+      - key: CVI_SPEECH_URL
+        value: http://127.0.0.1:9000
+      - key: CVI_SPEECH_STREAM_URL
+        value: ws://127.0.0.1:9000/stream
+      - key: CVI_SPEECH_STT_ENGINE
+        value: groq
+      - key: CVI_SPEECH_STT_ENABLED
+        value: "true"
+      - key: CVI_SPEECH_TTS_ENABLED
+        value: "false"
+      - key: CVI_SPEECH_VAD_PROVIDER
+        value: energy
+      - key: CVI_SPEECH_EMIT_AUDIO_SEGMENTS
+        value: "false"
+      - key: CVI_DEMO_LINK_TTL_MINUTES
+        value: "15"
+      - key: CVI_RATE_LIMIT_DEMO_PER_MINUTE
+        value: "6"
+      - key: CVI_LOG_FORMAT
+        value: json
+      - key: CVI_LOG_LEVEL
+        value: info
