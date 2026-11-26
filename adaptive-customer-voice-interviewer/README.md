@@ -17,6 +17,8 @@ Participants never configure the study. A researcher preconfigures the company, 
   1. A model-free, 1–3 word acknowledgement emitted at VAD speech end, before transcript finalization.
   2. A short, warm reflection generated after answer decomposition, in parallel with the research graph.
   - The participant UI waits for both spoken layers before rendering the next question.
+- **Consent-gated participation** — participants must confirm they understand recording, evidence use, access, retention, and deletion requests before the interview starts.
+- **Tokenless rotating demo links** — a public `/?demo=<slug>` URL exchanges a slug for a short-lived capability; raw tokens stay out of the address bar.
 - **Tenant and researcher isolation** — named researcher accounts, roles, tenant stamping, ownership filtering, and fail-closed hosted auth.
 - **Durable background work** — repository-backed job queue, fencing tokens, leases, heartbeats, voice outbox, and ack-based event delivery.
 - **Auditable memory** — PostgreSQL production persistence, SQLite offline-test persistence, versioned migrations, backups, structured logs, health checks, and request IDs.
@@ -27,7 +29,7 @@ Participants never configure the study. A researcher preconfigures the company, 
 ## Architecture at a glance
 
 ```text
-Participant invite link
+Participant invite link or tokenless demo slug
         |
         v
 FastAPI participant UI  <---- voice websocket ---->  Local speech service

@@ -499,6 +499,35 @@ textarea {
     min-height: 42px;
 }
 
+.consent-panel {
+    margin: 12px 0 22px;
+    padding: 16px;
+    background: var(--inset);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+}
+
+.consent-choice {
+    display: flex;
+    align-items: flex-start;
+    gap: 10px;
+    color: var(--text-soft);
+    font-size: 13px;
+    line-height: 1.5;
+}
+
+.consent-choice input {
+    margin-top: 2px;
+    accent-color: var(--accent);
+}
+
+.consent-copy {
+    margin: 10px 0 0;
+    color: var(--muted);
+    font-size: 12px;
+    line-height: 1.6;
+}
+
 .form-error {
     min-height: 16px;
     margin: 12px 0 0;

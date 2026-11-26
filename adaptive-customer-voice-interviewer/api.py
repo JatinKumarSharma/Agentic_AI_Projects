@@ -5,6 +5,7 @@ import json
 import asyncio
 import csv
 import io
+import re
 
 from dotenv import load_dotenv
 
@@ -30,7 +31,7 @@ from threading import Event, Lock, Thread
 
 import websockets
 
-from datetime import date, datetime, timezone
+from datetime import date, datetime, timedelta, timezone
 from typing import Annotated, Any, Optional
 from uuid import uuid4
 
@@ -342,6 +343,78 @@ def _require_participant_session(
     return session
 
 
+# Public demo links expose a slug, never a participant capability. The slug
+# selects a pool of pre-created, unstarted sessions; issuing a demo invite
+# rotates one pool member's capability and gives a short deadline.
+_DEMO_SLUG_RE = re.compile(r"^[A-Za-z0-9_-]{3,64}$")
+
+
+def _valid_demo_slug(slug: str | None) -> bool:
+    return bool(slug and _DEMO_SLUG_RE.fullmatch(slug))
+
+
+def _demo_ttl_seconds() -> int:
+    try:
+        minutes = int(os.getenv("CVI_DEMO_LINK_TTL_MINUTES", "15"))
+    except ValueError:
+        minutes = 15
+
+    return min(max(minutes, 1), 60) * 60
+
+
+def _parse_iso_timestamp(value: Any) -> datetime | None:
+    if not value:
+        return None
+
+    try:
+        parsed = datetime.fromisoformat(str(value))
+    except (TypeError, ValueError):
+        return None
+
+    if parsed.tzinfo is None:
+        parsed = parsed.replace(tzinfo=timezone.utc)
+
+    return parsed.astimezone(timezone.utc)
+
+
+def _demo_claim_is_active(session: dict, ttl_seconds: int) -> bool:
+    claimed_at = _parse_iso_timestamp(session.get("demo_claimed_at"))
+
+    if claimed_at is None:
+        return False
+
+    age = (datetime.now(timezone.utc) - claimed_at).total_seconds()
+    return 0 <= age < ttl_seconds
+
+
+def _find_demo_session(slug: str) -> dict | None:
+    """Find an unclaimed session in the deployment tenant's demo pool."""
+
+    candidates = [
+        session
+        for session in read_model.list_sessions(
+            tenant_id=current_tenant_id()
+        )
+        if session.get("demo_slug") == slug
+    ]
+
+    ttl_seconds = _demo_ttl_seconds()
+    eligible = [
+        session
+        for session in candidates
+        if can_start_interview(session)
+        and not session.get("interview_started_at")
+        and not _demo_claim_is_active(session, ttl_seconds)
+    ]
+    eligible.sort(
+        key=lambda session: str(
+            session.get("created_at") or session.get("session_id") or ""
+        )
+    )
+
+    return eligible[0] if eligible else None
+
+
 @app.middleware("http")
 async def request_context(request: Request, call_next):
     """Attach a request ID to logs and propagate it to the caller."""
@@ -590,6 +663,10 @@ class CreateSessionRequest(BaseModel):
     # "none" (default), a preset (1h, 3h, 1d), or a timezone-aware
     # ISO-8601 timestamp such as 2026-11-22T15:00:00+05:30.
     link_expiry: Optional[str] = None
+    # Optional public demo pool name. Sessions sharing a slug form a pool;
+    # the public broker issues a short-lived capability for one unclaimed
+    # session and never returns a permanent invite URL.
+    demo_slug: Optional[str] = None
 
 
 class VoiceResponseRequest(BaseModel):
@@ -1605,6 +1682,128 @@ def readiness_check():
     }
 
 
+@app.post("/demo/invites/{slug}", status_code=201)
+def issue_demo_invite(slug: str, http_request: Request = None):
+    """Issue a short-lived capability for a pre-created public demo session.
+
+    The published page URL contains only ``/?demo=<slug>``. The raw capability
+    is returned once in this response body and is held by the browser in
+    memory/session storage; it is never placed back into the address bar.
+    """
+
+    if not _valid_demo_slug(slug):
+        raise HTTPException(
+            status_code=422,
+            detail=(
+                "Demo slug must be 3–64 letters, digits, underscores, "
+                "or hyphens."
+            ),
+        )
+
+    client_host = getattr(getattr(http_request, "client", None), "host", None)
+
+    if not rate_limiter.allow(
+        "demo_ip",
+        abuse_limits.client_ip_key(client_host),
+        rate_limiter.demo_limit,
+    ):
+        raise HTTPException(
+            status_code=429,
+            detail="Too many demo requests from this network. Please slow down.",
+        )
+
+    if not rate_limiter.allow(
+        "demo_slug",
+        slug,
+        rate_limiter.demo_limit * 3,
+    ):
+        raise HTTPException(
+            status_code=429,
+            detail="This demo is busy right now. Please try again shortly.",
+        )
+
+    candidate = _find_demo_session(slug)
+
+    if candidate is None:
+        raise HTTPException(
+            status_code=503,
+            detail="No demo interview is available right now. Please try again shortly.",
+        )
+
+    session_id = candidate["session_id"]
+    ttl_seconds = _demo_ttl_seconds()
+
+    with session_processing_lock(session_id) as acquired:
+        if not acquired:
+            raise HTTPException(
+                status_code=409,
+                detail="This demo interview is being claimed. Please try again.",
+            )
+
+        session = read_model.get_session(
+            session_id,
+            tenant_id=current_tenant_id(),
+        )
+
+        if (
+            session is None
+            or session.get("demo_slug") != slug
+            or session.get("interview_started_at")
+            or not can_start_interview(session)
+            or _demo_claim_is_active(session, ttl_seconds)
+        ):
+            raise HTTPException(
+                status_code=503,
+                detail="No demo interview is available right now. Please try again shortly.",
+            )
+
+        token = new_participant_token()
+        issued_at = datetime.now(timezone.utc)
+        expires_at = issued_at + timedelta(seconds=ttl_seconds)
+        issued_at_text = issued_at.isoformat(timespec="milliseconds")
+        expires_at_text = expires_at.isoformat(timespec="milliseconds")
+
+        session["participant_token_hash"] = hash_participant_token(token)
+        session["participant_token_issued_at"] = issued_at_text
+        session["link_expiry"] = "demo"
+        session["link_expires_at"] = expires_at_text
+        session["demo_claimed_at"] = issued_at_text
+        session["updated_by"] = "demo-broker"
+        _save_session(session)
+
+        tenant = current_tenant_id()
+        read_model.record_event(
+            session_id,
+            "demo_invite_issued",
+            {
+                "demo_slug": slug,
+                "link_expires_at": expires_at_text,
+                "ttl_seconds": ttl_seconds,
+            },
+            actor="participant",
+            action="demo.invite_issued",
+            resource="session",
+            request_id=get_request_id(),
+            tenant_id=tenant,
+        )
+        read_model.record_audit(
+            action="demo.invite_issued",
+            actor="participant",
+            resource_type="session",
+            resource_id=session_id,
+            tenant_id=tenant,
+            request_id=get_request_id(),
+            metadata={"demo_slug": slug, "ttl_seconds": ttl_seconds},
+        )
+
+    return {
+        "session_id": session_id,
+        "participant_token": token,
+        "demo_slug": slug,
+        "link_expires_at": expires_at_text,
+    }
+
+
 @app.get("/sessions/{session_id}/invitation")
 def get_participant_invitation(
     session_id: str,
@@ -1853,6 +2052,17 @@ def create_session(
         Depends(require_researcher_if_configured),
     ] = None,
 ):
+    demo_slug = request.demo_slug.strip() if request.demo_slug else None
+
+    if demo_slug and not _valid_demo_slug(demo_slug):
+        raise HTTPException(
+            status_code=422,
+            detail=(
+                "demo_slug must be 3–64 letters, digits, underscores, "
+                "or hyphens."
+            ),
+        )
+
     try:
         session = create_research_session(
             company_id=request.company_id,
@@ -1872,6 +2082,7 @@ def create_session(
         session = activate_research_session(session)
         tenant = _tenant(context)
         session["tenant_id"] = tenant
+        session["demo_slug"] = demo_slug
         participant_token = new_participant_token()
         session["participant_token_hash"] = hash_participant_token(
             participant_token
@@ -1930,6 +2141,7 @@ def create_session(
             "end_date": session["end_date"],
             "link_expiry": session.get("link_expiry"),
             "link_expires_at": session.get("link_expires_at"),
+            "demo_slug": demo_slug,
             "participant_url": (
                 "/?"
                 + urlencode(

@@ -12,6 +12,8 @@ const elements = {
     welcomePanel: document.getElementById("welcomePanel"),
     welcomeTitle: document.getElementById("welcomeTitle"),
     welcomeMessage: document.getElementById("welcomeMessage"),
+    consentCheckbox: document.getElementById("consentCheckbox"),
+    consentError: document.getElementById("consentError"),
     beginInterviewButton: document.getElementById("beginInterviewButton"),
     interviewPanel: document.getElementById("interviewPanel"),
     productTitle: document.getElementById("productTitle"),
@@ -41,6 +43,7 @@ const elements = {
 const state = {
     sessionId: null,
     participantToken: null,
+    demoSlug: null,
     invitation: null,
     permissionGranted: false,
     voiceCheckComplete: false,
@@ -103,6 +106,7 @@ const state = {
 
 const AUTO_VAD_THRESHOLD = 360;
 const AUTO_SILENCE_MS = 900;
+const DEMO_INVITE_STORAGE_KEY = "cvi-demo-invite";
 
 
 // --------------------------------------------------
@@ -565,6 +569,62 @@ function participantTokenFromUrl() {
 }
 
 
+function demoSlugFromUrl() {
+    const params = new URLSearchParams(window.location.search);
+
+    return (params.get("demo") || params.get("invite") || "").trim();
+}
+
+
+function readStoredInvite() {
+    try {
+        const raw = sessionStorage.getItem(DEMO_INVITE_STORAGE_KEY);
+        return raw ? JSON.parse(raw) : null;
+    } catch (error) {
+        console.warn("Stored interview capability could not be read.");
+        return null;
+    }
+}
+
+
+function writeStoredInvite(invite) {
+    try {
+        sessionStorage.setItem(
+            DEMO_INVITE_STORAGE_KEY,
+            JSON.stringify(invite)
+        );
+    } catch (error) {
+        console.warn("Interview capability could not be cached for reloads.");
+    }
+}
+
+
+function storedInviteIsFresh(invite) {
+    const expiresAt = Date.parse(invite?.link_expires_at || "");
+
+    return Boolean(
+        invite?.session_id &&
+        invite?.participant_token &&
+        Number.isFinite(expiresAt) &&
+        expiresAt > Date.now()
+    );
+}
+
+
+function scrubParticipantTokenFromUrl() {
+    const url = new URL(window.location.href);
+
+    if (!url.searchParams.has("participant_token")) return;
+
+    url.searchParams.delete("participant_token");
+    history.replaceState(
+        null,
+        "",
+        `${url.pathname}${url.search}${url.hash}`
+    );
+}
+
+
 function setCheckState(element, status, message) {
     element.dataset.state = status;
 
@@ -596,20 +656,73 @@ function speakSystemMessage(text) {
 
 async function loadInvitation() {
     elements.permissionError.textContent = "";
+    elements.consentError.textContent = "";
+    elements.consentCheckbox.checked = false;
+    updateBeginButton();
 
+    state.demoSlug = demoSlugFromUrl();
     state.sessionId = sessionIdFromUrl();
     state.participantToken = participantTokenFromUrl();
     state.seenVoiceEventIds.clear();
     state.invitationStartedAt = monotonicMs();
 
-    if (!state.sessionId) {
-        elements.permissionButton.disabled = true;
-        elements.permissionError.textContent =
-            "This link is missing its interview ID. Please ask for a fresh interview link.";
-        return;
-    }
-
     try {
+        if (!state.sessionId && state.demoSlug) {
+            const stored = readStoredInvite();
+            const canReuse = stored?.demo_slug === state.demoSlug &&
+                storedInviteIsFresh(stored);
+
+            if (canReuse) {
+                state.sessionId = stored.session_id;
+                state.participantToken = stored.participant_token;
+            } else {
+                const claim = await apiRequest(
+                    `/demo/invites/${encodeURIComponent(state.demoSlug)}`,
+                    { method: "POST" }
+                );
+
+                state.sessionId = claim.session_id;
+                state.participantToken = claim.participant_token;
+                writeStoredInvite({
+                    session_id: claim.session_id,
+                    participant_token: claim.participant_token,
+                    demo_slug: state.demoSlug,
+                    link_expires_at: claim.link_expires_at,
+                });
+            }
+
+            // The public URL stays tokenless after the one-time exchange.
+            history.replaceState(
+                null,
+                "",
+                `${window.location.pathname}?demo=${encodeURIComponent(state.demoSlug)}`
+            );
+        } else if (state.participantToken) {
+            writeStoredInvite({
+                session_id: state.sessionId,
+                participant_token: state.participantToken,
+                demo_slug: null,
+                link_expires_at: new Date(Date.now() + 86400000).toISOString(),
+            });
+            scrubParticipantTokenFromUrl();
+        } else {
+            const stored = readStoredInvite();
+
+            if (
+                stored?.session_id === state.sessionId &&
+                (!stored.demo_slug || storedInviteIsFresh(stored))
+            ) {
+                state.participantToken = stored.participant_token;
+            }
+        }
+
+        if (!state.sessionId) {
+            elements.permissionButton.disabled = true;
+            elements.permissionError.textContent =
+                "This link is missing its interview ID or demo link. Please ask for a fresh interview link.";
+            return;
+        }
+
         const invitation = await apiRequest(
             `/sessions/${encodeURIComponent(state.sessionId)}/invitation`
         );
@@ -823,6 +936,13 @@ async function runCompatibilityCheck() {
 async function beginInterview() {
     if (state.busy || !state.sessionId) return;
 
+    if (!consentGiven()) {
+        elements.consentError.textContent =
+            "Please confirm that you understand how your responses will be recorded and used.";
+        return;
+    }
+
+    elements.consentError.textContent = "";
     state.autoCaptureToken += 1;
     stopAutoMonitor();
     state.firstQuestionStartedAt = monotonicMs();
@@ -862,6 +982,11 @@ elements.beginInterviewButton.addEventListener(
     "click",
     beginInterview
 );
+
+elements.consentCheckbox.addEventListener("change", () => {
+    elements.consentError.textContent = "";
+    updateBeginButton();
+});
 
 
 // --------------------------------------------------
@@ -2391,13 +2516,22 @@ function hideQuestionLoading() {
     elements.questionLoading.classList.add("hidden");
 }
 
+function consentGiven() {
+    return Boolean(elements.consentCheckbox?.checked);
+}
+
+function updateBeginButton() {
+    elements.beginInterviewButton.disabled = state.busy ||
+        !state.sessionId ||
+        !consentGiven();
+}
+
 function setBusy(isBusy) {
     state.busy = isBusy;
 
     elements.permissionButton.disabled = isBusy ||
         !state.sessionId;
-    elements.beginInterviewButton.disabled = isBusy ||
-        !state.sessionId;
+    updateBeginButton();
     elements.submitResponseButton.disabled = isBusy ||
         !elements.transcriptText.value.trim();
 
