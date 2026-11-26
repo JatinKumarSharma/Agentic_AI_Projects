@@ -69,7 +69,15 @@ services:
       - key: CVI_SPEECH_STREAM_URL
         value: ws://127.0.0.1:9000/stream
       - key: CVI_SPEECH_STT_ENGINE
-        value: groq
+        # Avoid direct Groq STT from Render egress; 403/1010 blocks can occur.
+        # Use small local Whisper on the free demo; typed fallback remains.
+        value: faster-whisper
+      - key: CVI_LOCAL_STT_MODEL
+        value: tiny.en
+      - key: CVI_LOCAL_STT_DEVICE
+        value: cpu
+      - key: CVI_LOCAL_STT_COMPUTE_TYPE
+        value: int8
       - key: CVI_SPEECH_STT_ENABLED
         value: "true"
       - key: CVI_SPEECH_TTS_ENABLED

@@ -151,9 +151,10 @@ address bar.
 - `CVI_WORKER_ENABLED=1` keeps job processing durable in Neon. The worker and
   speech threads are per-container; do not scale the free service to multiple
   instances.
-- The speech bridge uses `CVI_SPEECH_STT_ENGINE=groq` and
-  `CVI_SPEECH_VAD_PROVIDER=energy`. Local Piper TTS and Silero/Whisper models
-  are disabled on this profile.
+- The speech bridge uses `CVI_SPEECH_STT_ENGINE=faster-whisper` with
+  `CVI_LOCAL_STT_MODEL=tiny.en` and `CVI_SPEECH_VAD_PROVIDER=energy` to avoid
+  Groq STT egress 403/1010 blocks on hosted demos. Local Piper TTS and large
+  Whisper models remain disabled on this profile; typed fallback is kept.
 - The strict VPS profile in `deployment.md` remains the full production target
   when a domain and paid hosting are available.
 
