@@ -37,8 +37,9 @@ const elements = {
     recoveryMessage: document.getElementById("recoveryMessage"),
     activityList: document.getElementById("activityList"),
     activityEmpty: document.getElementById("activityEmpty"),
-    interviewError: document.getElementById("interviewError"),
-    errorActions: document.getElementById("errorActions"),
+    conversationRail: document.getElementById("conversationRail"),
+    participantWorkspace: document.getElementById("participantWorkspace"),
+    interviewError: document.getElementById("interviewError"),    errorActions: document.getElementById("errorActions"),
     retryProcessingButton: document.getElementById("retryProcessingButton"),
     retryHint: document.getElementById("retryHint")
 };
@@ -963,9 +964,10 @@ async function beginInterview() {
     state.nextQuestionTimingRecorded = false;
 
     clearActivity();
+    elements.conversationRail.classList.remove("hidden");
+    elements.participantWorkspace.classList.add("has-rail");
 
-    elements.productTitle.textContent = state.invitation
-        ? `${state.invitation.company_name} · ${state.invitation.product_name || "Customer interview"}`
+    elements.productTitle.textContent = state.invitation        ? `${state.invitation.company_name} · ${state.invitation.product_name || "Customer interview"}`
         : "Customer interview";
 
     document.getElementById("intro").classList.add("hidden");
@@ -2179,7 +2181,21 @@ async function handleVoiceSocketMessage(message) {
 
         case "error":
             state.audioIssue = true;
-            showInterviewError(data.message || "Speech recognition failed.");
+            stopAudioCapture();
+            stopAutoMonitor();
+            state.autoVadArmed = false;
+            elements.voiceVisual.classList.remove("is-recording");
+            elements.recordButton.textContent = "Start speaking";
+            elements.recordButton.disabled = false;
+            elements.transcriptStatus.textContent =
+                "Speech could not be transcribed. Please type your answer.";
+            elements.voiceStatus.textContent =
+                "Voice transcription is unavailable. Type your answer below.";
+            elements.interviewStatus.textContent = "LISTENING";
+            showInterviewError(
+                "Speech could not be transcribed. You can type your answer instead." +
+                (data.message ? ` (${data.message})` : "")
+            );
             break;
 
         default:

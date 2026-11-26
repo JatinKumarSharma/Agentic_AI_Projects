@@ -124,6 +124,8 @@ def _multipart_request(
     body.extend(f"--{boundary}--\r\n".encode())
 
     request_headers = {
+        "Accept": "application/json",
+        "User-Agent": "customer-voice-interviewer/1.0",
         "Content-Type": f"multipart/form-data; boundary={boundary}",
         **(headers or {}),
     }
