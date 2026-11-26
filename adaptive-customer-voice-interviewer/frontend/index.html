@@ -1,0 +1,220 @@
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="theme-color" content="#090d12">
+    <title>Customer Voice Interviewer</title>
+    <link rel="stylesheet" href="/style.css">
+</head>
+
+<body>
+    <main class="app-shell participant-shell">
+
+        <header class="topbar">
+            <div class="brand">
+                <div class="brand-mark">CVI</div>
+                <span>Customer Voice Interviewer</span>
+            </div>
+            <div class="topbar-actions">
+                <button type="button" class="theme-toggle" id="themeToggle"
+                        aria-label="Switch to light theme"
+                        title="Switch theme">
+                    <span class="theme-toggle-icon" id="themeToggleIcon" aria-hidden="true">☾</span>
+                    <span id="themeToggleLabel">Dark</span>
+                </button>
+                <nav class="view-switcher" aria-label="Dashboard navigation">
+                    <a href="/" class="active">Participant</a>
+                </nav>
+                <div class="connection-status">
+                    <span class="status-dot"></span>
+                    <span id="connectionText">Ready to connect</span>
+                </div>
+            </div>
+        </header>
+
+        <section class="intro" id="intro">
+            <p class="eyebrow">CUSTOMER RESEARCH PLATFORM</p>
+            <h1>Every conversation<br>reveals an insight.</h1>
+            <p class="intro-description">
+                A guided voice interview designed to understand
+                customer experiences, needs and expectations.
+            </p>
+        </section>
+
+        <div class="participant-workspace">
+            <div class="participant-main">
+
+        <section class="setup-panel preflight-panel" id="permissionPanel">
+            <div class="section-heading">
+                <div>
+                    <p class="eyebrow">BEFORE WE BEGIN</p>
+                    <h2>Let's check your setup</h2>
+                </div>
+                <span class="step-label">01 / PERMISSION</span>
+            </div>
+
+            <p class="intro-description">
+                The interviewer will speak your questions aloud and listen to
+                your answers. We are checking your browser and microphone
+                automatically. Please allow microphone access when your browser
+                asks. Nothing is recorded until you answer a question.
+            </p>
+
+            <ul class="compatibility-list" id="compatibilityList">
+                <li id="checkBrowser" data-check="browser">
+                    <span class="check-mark" aria-hidden="true">○</span>
+                    <span>Checking browser compatibility…</span>
+                </li>
+                <li id="checkMicrophone" data-check="microphone">
+                    <span class="check-mark" aria-hidden="true">○</span>
+                    <span>Microphone permission has not been requested yet.</span>
+                </li>
+                <li id="checkAudio" data-check="audio">
+                    <span class="check-mark" aria-hidden="true">○</span>
+                    <span>Audio playback has not been checked yet.</span>
+                </li>
+            </ul>
+
+            <button type="button" id="permissionButton" disabled>
+                Checking setup automatically…
+                <span aria-hidden="true">↻</span>
+            </button>
+
+            <p class="form-error" id="permissionError" role="alert"></p>
+        </section>
+
+        <section class="setup-panel welcome-panel hidden" id="welcomePanel">
+            <div class="section-heading">
+                <div>
+                    <p class="eyebrow">YOU'RE READY</p>
+                    <h2 id="welcomeTitle">Welcome to your interview</h2>
+                </div>
+                <span class="step-label">02 / READY</span>
+            </div>
+
+            <p class="intro-description" id="welcomeMessage">
+                Thanks for joining. You can answer each question by voice or
+                by typing your response.
+            </p>
+
+            <button type="button" id="beginInterviewButton">
+                Begin interview
+                <span aria-hidden="true">→</span>
+            </button>
+        </section>
+
+        <section class="interview-panel hidden" id="interviewPanel">
+
+            <div class="interview-meta">
+                <div>
+                    <p class="eyebrow">LIVE INTERVIEW</p>
+                    <h2 id="productTitle">Customer interview</h2>
+                </div>
+                <span class="step-label" id="interviewStatus">PREPARING</span>
+            </div>
+
+            <div class="question-area">
+                <p class="eyebrow">CURRENT QUESTION</p>
+                <div class="question-loading hidden" id="questionLoading"
+                     role="status" aria-live="polite">
+                    <span class="question-spinner" aria-hidden="true"></span>
+                    <span>Preparing your first question…</span>
+                </div>
+                <h2 id="questionText">
+                    Your interview question will appear here.
+                </h2>
+                <button type="button" class="text-button" id="replayButton">
+                    <span aria-hidden="true">↻</span> Repeat question
+                </button>
+            </div>
+
+            <div class="feedback-strip hidden" id="feedbackStrip"
+                 role="status" aria-live="polite">
+                <span class="feedback-dot" aria-hidden="true"></span>
+                <div>
+                    <p class="eyebrow" id="feedbackLabel">INTERVIEWER</p>
+                    <p id="feedbackText"></p>
+                </div>
+            </div>
+
+            <div class="recovery-notice hidden" id="recoveryNotice"
+                 role="status" aria-live="polite">
+                <p class="eyebrow" id="recoveryTitle">LET'S TRY AGAIN</p>
+                <p id="recoveryMessage"></p>
+            </div>
+
+            <div class="voice-area">
+                <div class="voice-visual" id="voiceVisual">
+                    <div class="voice-circle">
+                        <span class="mic-symbol">🎙</span>
+                    </div>
+                </div>
+
+                <p id="voiceStatus">Your microphone is ready.</p>
+
+                <button type="button" id="recordButton" class="record-button">
+                    Start speaking
+                </button>
+
+                <p class="voice-hint" id="voiceHint">
+                    Listening automatically — just start speaking. Use Start speaking if needed.
+                </p>
+            </div>
+
+            <div class="transcript-area">
+                <div class="transcript-heading">
+                    <span>YOUR TRANSCRIPT</span>
+                    <span id="transcriptStatus">No response yet</span>
+                </div>
+
+                <textarea id="transcriptText" rows="4"
+                          placeholder="Your recognized speech will appear here. You can edit it before submitting."
+                          aria-label="Recognized speech transcript"></textarea>
+
+                <div class="transcript-actions">
+                    <button type="button" class="secondary-button" id="clearTranscriptButton">
+                        Clear
+                    </button>
+                    <button type="button" id="submitResponseButton" disabled>
+                        Submit response →
+                    </button>
+                </div>
+            </div>
+
+            <p class="form-error" id="interviewError" role="alert"></p>
+
+        </section>
+
+            </div>
+
+            <aside class="conversation-rail" id="conversationRail"
+                   aria-label="Question and response history">
+                <div class="transcript-heading">
+                    <span>CONVERSATION HISTORY</span>
+                    <span>LIVE</span>
+                </div>
+
+                <p class="activity-empty" id="activityEmpty">
+                    Questions and responses will appear here as the
+                    interview progresses.
+                </p>
+
+                <ol class="activity-list" id="activityList"
+                    aria-live="polite"></ol>
+            </aside>
+
+        </div>
+
+        <footer class="footer">
+            <span>Customer Voice Interviewer</span>
+            <span>Powered by AI</span>
+        </footer>
+
+    </main>
+
+    <script src="/theme.js"></script>
+    <script src="/app.js"></script>
+</body>
+</html>

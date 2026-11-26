@@ -1,0 +1,13 @@
+langgraph
+langchain
+langchain-core
+langchain-groq
+langchain-ollama
+python-dotenv
+pydantic
+
+fastapi
+uvicorn[standard]
+sarvamai==0.1.45
+websockets
+psycopg[binary]

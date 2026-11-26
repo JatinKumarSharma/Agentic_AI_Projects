@@ -1,0 +1,510 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="theme-color" content="#090d12">
+    <title>Research Dashboard | Customer Voice Interviewer</title>
+    <link rel="stylesheet" href="/style.css">
+</head>
+
+<body>
+    <main class="app-shell researcher-shell">
+
+        <header class="topbar">
+            <div class="brand">
+                <div class="brand-mark">CVI</div>
+                <span>Customer Voice Interviewer</span>
+            </div>
+
+            <div class="topbar-actions">
+                <button type="button" class="theme-toggle" id="themeToggle"
+                        aria-label="Switch to light theme"
+                        title="Switch theme">
+                    <span class="theme-toggle-icon" id="themeToggleIcon" aria-hidden="true">☾</span>
+                    <span id="themeToggleLabel">Dark</span>
+                </button>
+                <nav class="view-switcher" aria-label="Dashboard navigation">
+                    <a href="/">Participant</a>
+                    <a href="/researcher" class="active">Researcher</a>
+                </nav>
+                <div class="connection-status">
+                    <span class="status-dot"></span>
+                    <span id="researcherConnectionText">Connecting…</span>
+                </div>
+            </div>
+        </header>
+
+        <section class="researcher-intro">
+            <div>
+                <p class="eyebrow">RESEARCH OPERATIONS</p>
+                <h1>Research dashboard</h1>
+                <p class="intro-description">
+                    Create interviews, review grouped research sessions, and
+                    build grounded analysis from accumulated evidence.
+                </p>
+            </div>
+
+            <button type="button" class="secondary-button" id="refreshButton">
+                Refresh
+            </button>
+        </section>
+
+        <nav class="researcher-tabs" role="tablist"
+             aria-label="Researcher workspace">
+            <button type="button" class="researcher-tab active"
+                    data-view="create" role="tab" aria-selected="true">
+                <span>01</span> Create interview
+            </button>
+            <button type="button" class="researcher-tab"
+                    data-view="sessions" role="tab" aria-selected="false">
+                <span>02</span> Research sessions
+            </button>
+            <button type="button" class="researcher-tab"
+                    data-view="analysis" role="tab" aria-selected="false">
+                <span>03</span> Analysis &amp; insights
+            </button>
+        </nav>
+
+        <!-- ==================================================== -->
+        <!-- VIEW 1 — CREATE INTERVIEW                             -->
+        <!-- ==================================================== -->
+        <section class="researcher-view" id="createPanel" data-view="create">
+            <section class="researcher-panel">
+                <div class="section-heading">
+                    <div>
+                        <p class="eyebrow">NEW RESEARCH SESSION</p>
+                        <h2>Create an interview</h2>
+                    </div>
+                    <span class="step-label">PARTICIPANT LINK</span>
+                </div>
+
+                <form id="createSessionForm" class="create-form">
+                    <fieldset class="create-fieldset">
+                        <legend>Research context</legend>
+                        <div class="create-grid">
+                            <label>
+                                <span>Company ID *</span>
+                                <input type="text" id="companyId" required
+                                       placeholder="e.g. acme">
+                            </label>
+                            <label>
+                                <span>Company name *</span>
+                                <input type="text" id="companyName" required
+                                       placeholder="e.g. Acme Technologies">
+                            </label>
+                            <label>
+                                <span>Product ID *</span>
+                                <input type="text" id="productId" required
+                                       placeholder="e.g. insight-kit">
+                            </label>
+                            <label>
+                                <span>Product name *</span>
+                                <input type="text" id="productName" required
+                                       placeholder="e.g. Insight Kit">
+                            </label>
+                            <label>
+                                <span>Product category *</span>
+                                <input type="text" id="productCategory" required
+                                       placeholder="e.g. Analytics">
+                            </label>
+                            <label>
+                                <span>Customer segment</span>
+                                <input type="text" id="customerSegment"
+                                       placeholder="e.g. existing customer">
+                            </label>
+                            <label class="span-all">
+                                <span>Research goal *</span>
+                                <textarea id="researchGoal" rows="2" required
+                                          placeholder="e.g. Understand setup friction with onboarding."></textarea>
+                            </label>
+                            <label class="span-all">
+                                <span>Target audience</span>
+                                <input type="text" id="targetAudience"
+                                       placeholder="e.g. Existing customers">
+                            </label>
+                        </div>
+                    </fieldset>
+
+                    <fieldset class="create-fieldset">
+                        <legend>Interview period &amp; participant</legend>
+                        <div class="create-grid">
+                            <label>
+                                <span>Start date</span>
+                                <input type="date" id="sessionStartDate">
+                            </label>
+                            <label>
+                                <span>End date</span>
+                                <input type="date" id="sessionEndDate">
+                            </label>
+                            <label>
+                                <span>Participant ID</span>
+                                <input type="text" id="participantId"
+                                       placeholder="e.g. participant-42">
+                            </label>
+                            <label>
+                                <span>Interview constraints</span>
+                                <input type="text" id="interviewConstraints"
+                                       placeholder="e.g. keep answers under 2 minutes">
+                            </label>
+                        </div>
+                    </fieldset>
+
+                    <fieldset class="create-fieldset">
+                        <legend>Interview link lifetime</legend>
+                        <div class="create-grid">
+                            <label>
+                                <span>Link expires after</span>
+                                <select id="linkExpiry">
+                                    <option value="none">Never (no expiry)</option>
+                                    <option value="1h">1 hour</option>
+                                    <option value="3h" selected>3 hours</option>
+                                    <option value="1d">1 day</option>
+                                    <option value="custom">Custom date &amp; time…</option>
+                                </select>
+                            </label>
+                            <div class="custom-expiry" id="customExpiryFields">
+                                <label>
+                                    <span>Expires at (participant local time)</span>
+                                    <input type="datetime-local" id="expiryDateTime">
+                                </label>
+                                <label>
+                                    <span>Participant timezone</span>
+                                    <select id="expiryTimezone">
+                                        <option value="+05:30">India · UTC+05:30</option>
+                                        <option value="+00:00">UTC · UTC+00:00</option>
+                                        <option value="+01:00">Central Europe · UTC+01:00</option>
+                                        <option value="+08:00">Singapore · UTC+08:00</option>
+                                        <option value="+10:00">Sydney · UTC+10:00</option>
+                                        <option value="-05:00">US Eastern · UTC−05:00</option>
+                                        <option value="-08:00">US Pacific · UTC−08:00</option>
+                                        <option value="custom">Other offset…</option>
+                                    </select>
+                                </label>
+                                <label class="hidden" id="customOffsetField">
+                                    <span>Custom offset (e.g. +05:45)</span>
+                                    <input type="text" id="expiryCustomOffset"
+                                           placeholder="e.g. +05:45">
+                                </label>
+                            </div>
+                        </div>
+                        <p class="field-hint">
+                            Custom deadlines are sent with the chosen offset and
+                            stored in UTC, so participants in other timezones
+                            get the exact deadline you intend.
+                        </p>
+                    </fieldset>
+
+                    <div class="create-actions">
+                        <button type="submit" id="createSessionButton">
+                            Create interview &amp; generate link
+                            <span aria-hidden="true">→</span>
+                        </button>
+                        <button type="reset" class="secondary-button"
+                                id="resetCreateButton">
+                            Clear form
+                        </button>
+                    </div>
+
+                    <p class="form-error" id="createError" role="alert"></p>
+                </form>
+
+                <div class="create-result hidden" id="createResult"
+                     role="status" aria-live="polite">
+                    <div class="card-heading">
+                        <p class="eyebrow">INTERVIEW READY</p>
+                        <h3 id="createResultTitle">Link generated</h3>
+                    </div>
+                    <p class="create-result-copy">
+                        Share this link with the participant. It pre-configures
+                        the research context — they never enter company or
+                        product details.
+                    </p>
+                    <div class="link-row">
+                        <input type="text" id="participantLink" readonly>
+                        <button type="button" class="secondary-button"
+                                id="copyLinkButton">
+                            Copy link
+                        </button>
+                    </div>
+                    <dl class="detail-facts" id="createResultFacts"></dl>
+                    <button type="button" class="text-button"
+                            id="viewCreatedSessionButton">
+                        Open this session in Research sessions →
+                    </button>
+                </div>
+            </section>
+        </section>
+
+        <!-- ==================================================== -->
+        <!-- VIEW 2 — RESEARCH SESSIONS                            -->
+        <!-- ==================================================== -->
+        <section class="researcher-view hidden" id="sessionsView"
+                 data-view="sessions">
+
+            <section class="researcher-panel" id="sessionListPanel">
+                <div class="section-heading">
+                    <div>
+                        <p class="eyebrow">SESSION LIBRARY</p>
+                        <h2>Research sessions</h2>
+                    </div>
+                    <span class="step-label" id="sessionCount">0 sessions</span>
+                </div>
+
+                <div class="session-toolbar">
+                    <label>
+                        <span>Group by</span>
+                        <select id="sessionGroupBy">
+                            <option value="product" selected>Company · product</option>
+                            <option value="company">Company</option>
+                            <option value="category">Product category</option>
+                            <option value="none">No grouping</option>
+                        </select>
+                    </label>
+                    <label>
+                        <span>Sort by</span>
+                        <select id="sessionSortBy">
+                            <option value="created_at" selected>Created</option>
+                            <option value="company_name">Company</option>
+                            <option value="product_name">Product</option>
+                            <option value="activity">Status</option>
+                            <option value="questions_asked_count">Questions</option>
+                            <option value="evidence_count">Evidence</option>
+                        </select>
+                    </label>
+                    <label>
+                        <span>Order</span>
+                        <select id="sessionSortOrder">
+                            <option value="desc" selected>Newest / highest first</option>
+                            <option value="asc">Oldest / lowest first</option>
+                        </select>
+                    </label>
+                    <label>
+                        <span>Search</span>
+                        <input type="search" id="sessionSearch"
+                               placeholder="company, product, goal…">
+                    </label>
+                </div>
+
+                <div class="session-groups" id="sessionList">
+                    <p class="empty-state">Loading sessions…</p>
+                </div>
+            </section>
+
+            <section class="researcher-panel hidden" id="sessionDetailPanel">
+                <div class="detail-header">
+                    <div>
+                        <button type="button" class="text-button" id="backButton">
+                            ← All sessions
+                        </button>
+                        <p class="eyebrow">SESSION DETAIL</p>
+                        <h2 id="detailTitle">Session</h2>
+                        <p class="detail-subtitle" id="detailSubtitle"></p>
+                    </div>
+                    <span class="activity-pill" id="detailActivity">idle</span>
+                </div>
+
+                <div class="metric-grid" id="metricGrid"></div>
+
+                <div class="researcher-grid">
+
+                    <article class="research-card wide-card">
+                        <div class="card-heading">
+                            <p class="eyebrow">CONFIGURATION</p>
+                            <h3>Interview setup</h3>
+                        </div>
+                        <dl class="detail-facts" id="sessionFacts"></dl>
+                    </article>
+
+                    <article class="research-card wide-card">
+                        <div class="card-heading">
+                            <p class="eyebrow">TRACEABILITY</p>
+                            <h3>Conversation timeline</h3>
+                        </div>
+                        <div class="timeline" id="conversationTimeline"></div>
+                    </article>
+
+                    <article class="research-card wide-card">
+                        <div class="card-heading">
+                            <p class="eyebrow">LATENCY</p>
+                            <h3>Conversation timing</h3>
+                        </div>
+                        <div class="timing-list" id="timingList"></div>
+                    </article>
+
+                    <article class="research-card wide-card">
+                        <div class="card-heading">
+                            <p class="eyebrow">EVIDENCE</p>
+                            <h3>Accumulated knowledge</h3>
+                        </div>
+                        <div class="knowledge-list" id="knowledgeList"></div>
+                    </article>
+
+                    <article class="research-card">
+                        <div class="card-heading">
+                            <p class="eyebrow">GAPS</p>
+                            <h3>Unresolved questions</h3>
+                        </div>
+                        <div class="gap-list" id="gapList"></div>
+                    </article>
+
+                    <article class="research-card">
+                        <div class="card-heading">
+                            <p class="eyebrow">DECISION TRAIL</p>
+                            <h3>Selected proposal &amp; reflection</h3>
+                        </div>
+                        <div class="insight-block" id="insightBlock"></div>
+                    </article>
+
+                    <article class="research-card">
+                        <div class="card-heading">
+                            <p class="eyebrow">QUALITY</p>
+                            <h3>State indicators</h3>
+                        </div>
+                        <div class="quality-list" id="qualityList"></div>
+                    </article>
+
+                    <article class="research-card">
+                        <div class="card-heading">
+                            <p class="eyebrow">META PLAN</p>
+                            <h3>Information requirements</h3>
+                        </div>
+                        <div class="requirement-list" id="requirementList"></div>
+                    </article>
+
+                    <article class="research-card wide-card">
+                        <div class="card-heading">
+                            <p class="eyebrow">GROUNDED ANALYSIS</p>
+                            <h3>Evidence report</h3>
+                        </div>
+                        <div class="insight-block" id="sessionReportSummary"></div>
+                    </article>
+
+                    <article class="research-card">
+                        <div class="card-heading">
+                            <p class="eyebrow">OUTPUT</p>
+                            <h3>Final insights</h3>
+                        </div>
+                        <div class="insight-block" id="insightOutput"></div>
+                    </article>
+
+                </div>
+            </section>
+        </section>
+
+        <!-- ==================================================== -->
+        <!-- VIEW 3 — ANALYSIS & INSIGHTS                          -->
+        <!-- ==================================================== -->
+        <section class="researcher-view hidden" id="analysisView"
+                 data-view="analysis">
+
+            <section class="researcher-panel insights-placeholder"
+                     id="insightsPlaceholder">
+                <div class="section-heading">
+                    <div>
+                        <p class="eyebrow">CROSS-SESSION RESEARCH</p>
+                        <h2>Trends &amp; insights</h2>
+                    </div>
+                    <span class="step-label">COMING SOON</span>
+                </div>
+                <p class="intro-description">
+                    This workspace will compare sessions over long periods for
+                    a product, company, or audience — surfacing shifts in
+                    consumer sentiment, recurring needs, and behavioural
+                    patterns. The grounded report tools below are available
+                    today and form its evidence base.
+                </p>
+                <div class="insight-roadmap">
+                    <span>Trend by product</span>
+                    <span>Trend by company</span>
+                    <span>Sentiment over time</span>
+                    <span>Behaviour patterns</span>
+                </div>
+            </section>
+
+            <section class="researcher-panel" id="reportPanel">
+                <div class="section-heading">
+                    <div>
+                        <p class="eyebrow">EVIDENCE-GROUNDED ANALYSIS</p>
+                        <h2>Analysis reports</h2>
+                    </div>
+                    <span class="step-label" id="reportCount">0 reports</span>
+                </div>
+
+                <form class="report-filter-grid" id="reportFilterForm">
+                    <label>
+                        <span>Period from</span>
+                        <input type="date" id="reportPeriodStart">
+                    </label>
+                    <label>
+                        <span>Period to</span>
+                        <input type="date" id="reportPeriodEnd">
+                    </label>
+                    <label>
+                        <span>Customer segment</span>
+                        <input type="text" id="reportSegment" placeholder="small business">
+                    </label>
+                    <label>
+                        <span>Product category</span>
+                        <input type="text" id="reportCategory" placeholder="Analytics">
+                    </label>
+                    <label>
+                        <span>Research goal</span>
+                        <input type="text" id="reportGoal" placeholder="Understand setup friction">
+                    </label>
+                    <label>
+                        <span>Interview status</span>
+                        <select id="reportStatus">
+                            <option value="">All statuses</option>
+                            <option value="unfinished">Unfinished</option>
+                            <option value="completed">Completed</option>
+                        </select>
+                    </label>
+                    <label>
+                        <span>Response pattern</span>
+                        <select id="reportPattern">
+                            <option value="">All patterns</option>
+                            <option value="recovered_after_invalid">
+                                Recovered after invalid
+                            </option>
+                            <option value="continuous_valid">
+                                Continuous valid
+                            </option>
+                            <option value="unresolved_invalid">
+                                Unresolved invalid
+                            </option>
+                            <option value="unclassified">Unclassified</option>
+                        </select>
+                    </label>
+                    <div class="report-filter-actions">
+                        <button type="submit" class="secondary-button">
+                            Apply filters
+                        </button>
+                        <a class="secondary-button" id="exportReportsLink"
+                           href="/researcher/analysis/reports/export.csv">
+                            Export CSV
+                        </a>
+                    </div>
+                </form>
+
+                <div class="metric-grid compact" id="reportAggregate"></div>
+
+                <div class="session-list" id="reportList">
+                    <p class="empty-state">Loading analysis reports…</p>
+                </div>
+
+                <div class="report-ledger" id="reportLedger"></div>
+            </section>
+        </section>
+
+        <footer class="footer">
+            <span>Researcher view</span>
+            <span>Customer Voice Interviewer</span>
+        </footer>
+
+    </main>
+
+    <script src="/theme.js"></script>
+    <script src="/researcher.js"></script>
+</body>
+</html>

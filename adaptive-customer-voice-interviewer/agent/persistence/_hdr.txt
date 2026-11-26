@@ -1,0 +1,31 @@
+﻿import json
+import os
+import sqlite3
+from datetime import datetime, timezone
+from pathlib import Path
+from typing import Any
+
+from agent.response_outcomes import is_completed
+from agent.session import normalize_date
+from agent.tenancy import (
+    audit_request_id,
+    current_tenant_id,
+    normalize_tenant_id,
+)
+
+PROJECT_ROOT = Path(__file__).resolve().parents[2]
+DEFAULT_DATABASE_PATH = Path(
+    os.getenv(
+        "CVI_READ_MODEL_DB",
+        PROJECT_ROOT / "data" / "research_read_model.sqlite3",
+    )
+)
+
+BASELINE_SCHEMA_VERSION = "001_baseline"
+TENANT_AUDIT_SCHEMA_VERSION = "002_tenant_audit_fields"
+AUTHORITATIVE_MEMORY_SCHEMA_VERSION = "003_authoritative_memory_contract"
+SCHEMA_VERSIONS = (
+    BASELINE_SCHEMA_VERSION,
+    TENANT_AUDIT_SCHEMA_VERSION,
+    AUTHORITATIVE_MEMORY_SCHEMA_VERSION,
+)

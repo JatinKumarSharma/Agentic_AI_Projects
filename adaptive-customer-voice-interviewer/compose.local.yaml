@@ -1,0 +1,107 @@
+# Test-only overlay. Production uses compose.yaml + compose.prod.yaml.
+# Use with:
+#   docker compose -f compose.yaml -f compose.local.yaml --profile offline up -d
+#
+# The one-shot pull-models service downloads Ollama and speech model files into
+# persistent volumes before the API starts. No runtime request leaves the
+# Compose network.
+
+x-offline-environment: &offline-environment
+  CVI_LLM_PROVIDER: ollama
+  CVI_OLLAMA_BASE_URL: http://ollama:11434
+  LOCAL_LLM_MODEL: ${LOCAL_LLM_MODEL:-qwen2.5:7b-instruct}
+  CVI_EVALUATOR_MODEL: qwen2.5:7b-instruct
+  CVI_LLM_STRUCTURED_METHOD: json_schema
+  GROQ_API_KEY: ""
+  CVI_VOICE_STT_PROVIDER: local
+  CVI_VOICE_STT_FALLBACKS: local,typed
+  CVI_LOCAL_STT_URL: http://speech:9000/transcribe
+  CVI_VOICE_TTS_PROVIDER: local
+  CVI_VOICE_TTS_FALLBACKS: local,browser
+  CVI_LOCAL_TTS_URL: http://speech:9000/synthesize
+  CVI_SPEECH_URL: http://speech:9000
+  CVI_SPEECH_STREAM_URL: ws://speech:9000/stream
+  CVI_LOCAL_MODEL_DIR: /models
+  CVI_LOCAL_TTS_MODEL: /models/tts/en_US-amy-medium.onnx
+  CVI_LOCAL_TTS_CONFIG: /models/tts/en_US-amy-medium.onnx.json
+
+services:
+  migrate:
+    environment:
+      <<: *offline-environment
+
+  api:
+    environment:
+      <<: *offline-environment
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+      ollama:
+        condition: service_healthy
+      speech:
+        condition: service_healthy
+      pull-models:
+        condition: service_completed_successfully
+
+  backup:
+    environment:
+      <<: *offline-environment
+
+  ollama: {}
+
+  speech:
+    build:
+      context: ./deploy/speech
+    image: cvi-speech:local
+    environment:
+      CVI_LOCAL_STT_MODEL: ${CVI_LOCAL_STT_MODEL:-small}
+      CVI_LOCAL_TTS_MODEL: /models/tts/en_US-amy-medium.onnx
+      CVI_SPEECH_VAD_PROVIDER: ${CVI_SPEECH_VAD_PROVIDER:-silero}
+      CVI_SPEECH_VAD_THRESHOLD: ${CVI_SPEECH_VAD_THRESHOLD:-0.5}
+      CVI_SPEECH_MIN_SPEECH_MS: ${CVI_SPEECH_MIN_SPEECH_MS:-250}
+      CVI_SPEECH_END_SILENCE_MS: ${CVI_SPEECH_END_SILENCE_MS:-1800}
+      CVI_SPEECH_MIN_SEGMENT_MS: ${CVI_SPEECH_MIN_SEGMENT_MS:-800}
+      CVI_SPEECH_COOLDOWN_MS: ${CVI_SPEECH_COOLDOWN_MS:-300}
+      CVI_SPEECH_MAX_SEGMENT_MS: ${CVI_SPEECH_MAX_SEGMENT_MS:-30000}
+      CVI_LOCAL_STT_LANGUAGE: en
+      HF_HOME: /models/huggingface
+      XDG_CACHE_HOME: /models/cache
+    expose:
+      - "9000"
+    volumes:
+      - speech-models:/models
+    healthcheck:
+      test:
+        - CMD
+        - python
+        - -c
+        - import urllib.request; urllib.request.urlopen('http://127.0.0.1:9000/health/ready', timeout=3)
+      interval: 15s
+      timeout: 5s
+      retries: 10
+      start_period: 20s
+    restart: unless-stopped
+
+  pull-models:
+    build:
+      context: .
+      target: runtime
+    image: cvi:local
+    # The /models volume is initialised by the speech image, whose user is
+    # UID 10002. Run the bootstrap as that UID so it can write Piper files.
+    user: "10002:10002"
+    command: ["python", "-m", "scripts.pull_local_models"]
+    env_file: .env
+    environment:
+      <<: *offline-environment
+    volumes:
+      - speech-models:/models
+    depends_on:
+      ollama:
+        condition: service_healthy
+      speech:
+        condition: service_healthy
+    restart: "no"
+
+volumes:
+  speech-models:

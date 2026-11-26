@@ -1,0 +1,193 @@
+name: cvi
+
+x-cvi-environment: &cvi-environment
+  CVI_PERSISTENCE_BACKEND: ${CVI_PERSISTENCE_BACKEND:-sqlite}
+  CVI_READ_MODEL_DB: /data/research_read_model.sqlite3
+  CVI_LOG_FORMAT: json
+  CVI_LOG_LEVEL: info
+  CVI_TENANT_ID: ${CVI_TENANT_ID:-default}
+  # Hosted AI/speech boundaries. Clients may override provider/model values.
+  CVI_LLM_PROVIDER: ${CVI_LLM_PROVIDER:-ollama}
+  CVI_OLLAMA_BASE_URL: ${CVI_OLLAMA_BASE_URL:-http://ollama:11434}
+  LOCAL_LLM_MODEL: ${LOCAL_LLM_MODEL:-qwen2.5:7b-instruct}
+  CVI_EVALUATOR_MODEL: ${CVI_EVALUATOR_MODEL:-qwen2.5:7b-instruct}
+  CVI_VOICE_STT_PROVIDER: ${CVI_VOICE_STT_PROVIDER:-local}
+  CVI_VOICE_STT_FALLBACKS: ${CVI_VOICE_STT_FALLBACKS:-local,typed}
+  CVI_VOICE_TTS_PROVIDER: ${CVI_VOICE_TTS_PROVIDER:-local}
+  CVI_VOICE_TTS_FALLBACKS: ${CVI_VOICE_TTS_FALLBACKS:-local,browser}
+  CVI_LOCAL_STT_URL: ${CVI_LOCAL_STT_URL:-http://speech:9000/transcribe}
+  CVI_LOCAL_TTS_URL: ${CVI_LOCAL_TTS_URL:-http://speech:9000/synthesize}
+  CVI_SPEECH_URL: ${CVI_SPEECH_URL:-http://speech:9000}
+  CVI_SPEECH_STREAM_URL: ${CVI_SPEECH_STREAM_URL:-ws://speech:9000/stream}
+  CVI_LOCAL_MODEL_DIR: /models
+  CVI_LOCAL_TTS_MODEL: /models/tts/en_US-amy-medium.onnx
+  CVI_LOCAL_TTS_CONFIG: /models/tts/en_US-amy-medium.onnx.json
+  # Separate worker process; in-process executors remain a test-only mode.
+  CVI_WORKER_ENABLED: ${CVI_WORKER_ENABLED:-0}
+  CVI_SESSION_LEASE_TTL_SECONDS: ${CVI_SESSION_LEASE_TTL_SECONDS:-300}
+
+services:
+  migrate:
+    build:
+      context: .
+      target: runtime
+    image: cvi:local
+    command: ["python", "-m", "scripts.migrate"]
+    env_file: .env
+    environment:
+      <<: *cvi-environment
+    volumes:
+      - cvi-data:/data
+    restart: "no"
+
+  api:
+    build:
+      context: .
+      target: runtime
+    image: cvi:local
+    env_file: .env
+    environment:
+      <<: *cvi-environment
+    expose:
+      - "8000"
+    volumes:
+      - cvi-data:/data
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+      ollama:
+        condition: service_healthy
+      speech:
+        condition: service_healthy
+      pull-models:
+        condition: service_completed_successfully
+    healthcheck:
+      test:
+        - CMD
+        - python
+        - -c
+        - import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/health/ready', timeout=3)
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
+    restart: unless-stopped
+
+  worker:
+    build:
+      context: .
+      target: runtime
+    image: cvi:local
+    command: ["python", "-m", "scripts.worker"]
+    env_file: .env
+    environment:
+      <<: *cvi-environment
+      CVI_WORKER_ENABLED: "1"
+      CVI_WORKER_STALE_TIMEOUT_SECONDS: ${CVI_WORKER_STALE_TIMEOUT_SECONDS:-300}
+      CVI_WORKER_HEARTBEAT_SECONDS: ${CVI_WORKER_HEARTBEAT_SECONDS:-30}
+    volumes:
+      - cvi-data:/data
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+      ollama:
+        condition: service_healthy
+      speech:
+        condition: service_healthy
+      pull-models:
+        condition: service_completed_successfully
+    restart: unless-stopped
+
+  backup:
+    build:
+      context: .
+      target: runtime
+    image: cvi:local
+    profiles: ["backup"]
+    command: ["python", "-m", "scripts.backup"]
+    env_file: .env
+    environment:
+      <<: *cvi-environment
+      CVI_BACKUP_DIR: /backups
+      CVI_BACKUP_RETENTION: "7"
+    volumes:
+      - cvi-data:/data
+      - cvi-backups:/backups
+    restart: "no"
+
+  # Self-hosted model provider. Clients may replace this service with their
+  # own LLM endpoint via CVI_OLLAMA_BASE_URL / LOCAL_LLM_MODEL.
+  ollama:
+    image: ollama/ollama:latest
+    environment:
+      OLLAMA_HOST: 0.0.0.0
+    volumes:
+      - ollama-models:/root/.ollama
+    expose:
+      - "11434"
+    healthcheck:
+      test: ["CMD", "ollama", "list"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+    restart: unless-stopped
+
+  # Self-hosted speech service. Clients may replace STT/TTS with their own
+  # endpoints via CVI_VOICE_STT_PROVIDER / CVI_VOICE_TTS_PROVIDER.
+  speech:
+    build:
+      context: ./deploy/speech
+    image: cvi-speech:local
+    environment:
+      CVI_LOCAL_STT_MODEL: ${CVI_LOCAL_STT_MODEL:-small}
+      CVI_LOCAL_TTS_MODEL: ${CVI_LOCAL_TTS_MODEL:-/models/tts/en_US-amy-medium.onnx}
+      CVI_SPEECH_VAD_PROVIDER: ${CVI_SPEECH_VAD_PROVIDER:-silero}
+      CVI_SPEECH_VAD_THRESHOLD: ${CVI_SPEECH_VAD_THRESHOLD:-0.5}
+      CVI_SPEECH_MIN_SPEECH_MS: ${CVI_SPEECH_MIN_SPEECH_MS:-250}
+      CVI_SPEECH_END_SILENCE_MS: ${CVI_SPEECH_END_SILENCE_MS:-1800}
+      CVI_SPEECH_MIN_SEGMENT_MS: ${CVI_SPEECH_MIN_SEGMENT_MS:-800}
+      CVI_SPEECH_COOLDOWN_MS: ${CVI_SPEECH_COOLDOWN_MS:-300}
+      CVI_SPEECH_MAX_SEGMENT_MS: ${CVI_SPEECH_MAX_SEGMENT_MS:-30000}
+      CVI_LOCAL_STT_LANGUAGE: en
+      HF_HOME: /models/huggingface
+      XDG_CACHE_HOME: /models/cache
+    expose:
+      - "9000"
+    volumes:
+      - speech-models:/models
+    healthcheck:
+      test:
+        - CMD
+        - python
+        - -c
+        - import urllib.request; urllib.request.urlopen('http://127.0.0.1:9000/health/ready', timeout=3)
+      interval: 15s
+      timeout: 5s
+      retries: 10
+      start_period: 20s
+    restart: unless-stopped
+
+  pull-models:
+    build:
+      context: .
+      target: runtime
+    image: cvi:local
+    user: "10002:10002"
+    command: ["python", "-m", "scripts.pull_local_models"]
+    env_file: .env
+    environment:
+      <<: *cvi-environment
+    volumes:
+      - speech-models:/models
+    depends_on:
+      ollama:
+        condition: service_healthy
+      speech:
+        condition: service_healthy
+    restart: "no"
+
+volumes:
+  cvi-data:
+  cvi-backups:
+  ollama-models:
+  speech-models:

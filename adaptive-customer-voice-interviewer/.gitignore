@@ -1,0 +1,48 @@
+# Secrets and local configuration
+.env
+.env.*
+!.env.example
+
+# Python
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.coverage
+htmlcov/
+.venv/
+venv/
+.python-version
+
+# Runtime data and generated artifacts
+data/
+*.sqlite3
+*.sqlite3-journal
+*.db
+*.db-journal
+backups/
+logs/
+*.log
+*.pid
+
+# Local model and speech assets
+models/
+data/models/
+*.onnx
+*.onnx.json
+*.wav
+*.mp3
+
+# TLS and deployment secrets
+deploy/certs/
+*.pem
+*.key
+*.crt
+
+# Editor and OS files
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+
+# One-off local snapshots
+*.zip
