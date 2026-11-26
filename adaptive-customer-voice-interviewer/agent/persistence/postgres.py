@@ -106,6 +106,18 @@ def _connect() -> Iterator[Any]:
         connection.close()
 
 
+def _executemany(connection: Any, sql: str, rows: list[tuple]) -> None:
+    """Run a batched statement on a cursor.
+
+    psycopg 3 exposes ``executemany`` on ``Cursor``, not on ``Connection``.
+    Keeping this boundary narrow also makes the driver behavior easy to fake
+    in offline tests.
+    """
+
+    with connection.cursor() as cursor:
+        cursor.executemany(sql, rows)
+
+
 _SCHEMA_STATEMENTS = (
     """
     CREATE TABLE IF NOT EXISTS schema_migrations (
@@ -1076,7 +1088,8 @@ def save_checkpoint_blobs(
     tenant = normalize_tenant_id(tenant_id)
 
     with _connect() as connection:
-        connection.executemany(
+        _executemany(
+            connection,
             """
             INSERT INTO langgraph_checkpoint_blobs (
                 tenant_id,
@@ -1175,7 +1188,8 @@ def save_checkpoint_writes(
 
     with _connect() as connection:
         if regular:
-            connection.executemany(
+            _executemany(
+                connection,
                 """
                 INSERT INTO langgraph_checkpoint_writes (
                     tenant_id,
@@ -1202,7 +1216,8 @@ def save_checkpoint_writes(
             )
 
         if special:
-            connection.executemany(
+            _executemany(
+                connection,
                 """
                 INSERT INTO langgraph_checkpoint_writes (
                     tenant_id,
