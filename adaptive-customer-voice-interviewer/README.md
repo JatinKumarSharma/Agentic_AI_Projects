@@ -133,7 +133,7 @@ Details are in [`docs/security_remediation_plan.md`](docs/security_remediation_p
 
 ## Portfolio notes
 
-See [`PORTFOLIO.md`](PORTFOLIO.md) for a concise case-study version of this project. Replace the placeholder links there with your live demo and repository URLs before publishing.
+See [`PORTFOLIO.md`](PORTFOLIO.md) for a concise case-study version of this project. The repository link is populated; add the live demo URL after deployment.
 
 ---
 
