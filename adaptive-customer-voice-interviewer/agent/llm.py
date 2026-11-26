@@ -49,6 +49,18 @@ def _env_int(name: str, default: int) -> int:
     return value
 
 
+def _output_token_limit() -> int:
+    """Return the per-request output ceiling for hosted providers.
+
+    Free hosted tiers can enforce output tokens per minute rather than
+    requests per minute. A deployment with a small ceiling can lower this
+    without changing research logic; self-hosted profiles keep the existing
+    default because they do not share a token budget.
+    """
+
+    return _env_int("CVI_LLM_MAX_OUTPUT_TOKENS", 999)
+
+
 PURPOSE_DEFAULT_TEMPERATURES = {
     "default": 0.0,
     "proposal": 0.3,
@@ -140,8 +152,8 @@ def get_llm(model: str | None = None, *, purpose: str = "default"):
         return ChatGroq(
             model=model_name,
             temperature=temperature,
-            # Keep every request under common free-tier output ceilings.
-            max_tokens=999,
+            # Keep every request under the deployed tier's output ceiling.
+            max_tokens=_output_token_limit(),
             # Nested SDK retries can honour multi-minute Retry-After headers.
             # A live interview fails fast and uses the bounded application
             # retry policy instead.
@@ -202,8 +214,8 @@ def get_structured_llm(schema: Type[BaseModel]):
     # langchain-ollama rejects every extra with_structured_output kwarg;
     # its output cap is already set as num_predict on the model itself.
     if provider == "groq":
-        # Stay under common free-tier output-token ceilings.
-        kwargs["max_tokens"] = 999
+        # Stay under the deployed tier's output-token ceiling.
+        kwargs["max_tokens"] = _output_token_limit()
 
     return get_llm().with_structured_output(schema, **kwargs)
 

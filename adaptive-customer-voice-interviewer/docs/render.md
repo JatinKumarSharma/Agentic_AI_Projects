@@ -33,6 +33,9 @@ committed file.** Enter them only in the Render dashboard.
   structured node can request about 750, so `CVI_LLM_MAX_RETRIES` is set to `2`
   in the blueprint; the Groq SDK then honours short `Retry-After` values. The
   SDK caps each wait at 60 seconds, which prevents multi-minute stalls.
+  `CVI_LLM_MAX_OUTPUT_TOKENS` is lowered to `400` so a structured node does not
+  consume most of that budget in one request. Self-hosted profiles keep the
+  provider default because they do not share a token budget.
 
 ## 1. Create the Neon database
 

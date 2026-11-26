@@ -141,6 +141,26 @@ def test_structured_llm_uses_groq_function_calling_by_default(monkeypatch):
     assert calls["kwargs"]["max_tokens"] == 999
 
 
+def test_groq_output_ceiling_can_be_lowered_for_shared_tiers(monkeypatch):
+    monkeypatch.setenv("CVI_LLM_PROVIDER", "groq")
+    monkeypatch.setenv("GROQ_API_KEY", "dummy-for-offline-tests")
+    monkeypatch.setenv("CVI_LLM_MAX_OUTPUT_TOKENS", "400")
+
+    assert llm.get_llm().max_tokens == 400
+
+    calls = {}
+
+    class FakeStructuredModel:
+        def with_structured_output(self, schema, *, method, **kwargs):
+            calls["kwargs"] = kwargs
+            return "structured"
+
+    monkeypatch.setattr(llm, "get_llm", lambda: FakeStructuredModel())
+    llm.get_structured_llm(ExampleSchema)
+
+    assert calls["kwargs"]["max_tokens"] == 400
+
+
 def test_structured_method_can_be_overridden(monkeypatch):
     monkeypatch.setenv("CVI_LLM_PROVIDER", "ollama")
     monkeypatch.setenv("CVI_LLM_STRUCTURED_METHOD", "json_schema")

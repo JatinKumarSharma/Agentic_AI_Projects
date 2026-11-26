@@ -32,6 +32,10 @@ services:
         # nodes can request ~750, so let the SDK honour short Retry-After
         # values instead of failing the participant turn on a 429.
         value: "2"
+      - key: CVI_LLM_MAX_OUTPUT_TOKENS
+        # Keep each structured request small enough that a whole interview
+        # turn fits inside the shared free-tier output budget.
+        value: "400"
       - key: CVI_LLM_REQUEST_TIMEOUT
         value: "12"
       - key: RESEARCHER_ACCESS_CODE
