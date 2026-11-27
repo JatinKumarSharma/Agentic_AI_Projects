@@ -224,6 +224,15 @@ check(
 sample_history = {
     "success": True,
     "source": "OpenBB",
+    "symbol": "AAPL",
+    "observations": 4,
+    "period_start": "2026-11-20",
+    "period_end": "2026-11-25",
+    "first_close": 100.0,
+    "last_close": 104.0,
+    "period_low": 100.0,
+    "period_high": 104.0,
+    "period_change_pct": 4.0,
     "prices": [
         {"date": "2026-11-20", "close": 100.0},
         {"date": "2026-11-23", "close": 102.5},
@@ -237,6 +246,20 @@ check(
     line_chart["success"]
     and line_chart["labels"] == ["2026-11-20", "2026-11-23", "2026-11-24", "2026-11-25"]
     and line_chart["values"] == [100.0, 102.5, 101.0, 104.0],
+)
+check(
+    "successful price result overrides a false no-data answer",
+    "Retrieved AAPL historical prices from OpenBB"
+    in apply_guardrails(
+        "I couldn't retrieve the requested data with the available tools.",
+        [sample_history],
+        chart_question,
+    )
+    and "+4.00%" in apply_guardrails(
+        "I couldn't retrieve the requested data with the available tools.",
+        [sample_history],
+        chart_question,
+    ),
 )
 check(
     "pie chart rejects negative price values",
