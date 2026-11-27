@@ -1052,6 +1052,10 @@ researcherElements.createForm.addEventListener("submit", async (event) => {
         `;
 
         researcherElements.createResult.classList.remove("hidden");
+        researcherElements.createResult.scrollIntoView({
+            behavior: "smooth",
+            block: "start"
+        });
         await loadSessions();
     } catch (error) {
         researcherElements.createError.textContent = error.message;
