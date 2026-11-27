@@ -2,7 +2,8 @@
 
 **One-line pitch:** An evidence-first voice research platform that turns adaptive LangGraph interviews into reports where every claim is traceable to the participant's exact words.
 
-**Live demo:** https://cvi-portfolio.onrender.com/?demo=portfolio-demo<br>
+**Demo link — Researcher Dashboard (demo):** https://cvi-portfolio.onrender.com/researcher<br>
+**Participant demo link:** https://cvi-portfolio.onrender.com/?demo=portfolio-demo<br>
 **Repository:** [adaptive-customer-voice-interviewer](https://github.com/JatinKumarSharma/Agentic_AI_Projects/tree/main/adaptive-customer-voice-interviewer)
 
 ---
@@ -54,8 +55,40 @@ Customer interviews usually lose the connection between what a person said and w
 
 Python, FastAPI, LangGraph, PostgreSQL, SQLite for offline tests, Docker Compose, Nginx, Silero VAD, faster-whisper, Piper TTS, Ollama/Groq adapter boundary, pytest.
 
-## What I would add next
+## Future scope
 
-- Published retention period and deletion contact for the deployed study.
-- Live dashboards for first-question latency, acknowledgement timing, and job failures.
-- A rate-safe model tier or GPU-backed self-hosted model for predictable public traffic.
+The items below are future scope, not claims about the current demo.
+
+### Foundational platform scope
+
+- **Production-grade deployment:** Move from the current free Render + Neon demo setup to the strict production target: VPS/custom domain deployment with Docker Compose, managed secrets, HTTPS, backups, monitoring, and production auth hardening.
+- **Reliable, higher-accuracy voice:** Upgrade speech capabilities beyond free-tier constraints by using higher-RAM/paid hosting or self-hosted STT/TTS models for better transcript accuracy, lower latency, and always-on reliability, while preserving typed-input fallback.
+- **Pluggable provider architecture:** Extend the existing client-replaceable boundaries for storage/memory, voice/speech, and LLM model/provider so deployments can swap demo/free providers (Groq, browser speech, Neon/Render) with self-hosted or enterprise-grade alternatives without changing the core evidence-first interview workflow.
+- **Self-hosted/privacy-first profile:** Strengthen the strict self-hosted deployment profile for privacy-sensitive environments, keeping participant data, speech processing, and model inference within controlled infrastructure.
+
+### Research measurement layer
+
+- **Question-quality eval set:** consented, human-reviewed transcripts scored for follow-up relevance, redundancy and research progress.
+- **Live timing dashboard:** first-question latency, acknowledgement timing, engagement emit time and failed-job counts in one view.
+- **Researcher review workflow:** human confirmation of evidence claims plus published retention and deletion controls for each study.
+- **Cross-session insight views:** aggregate themes across sessions with tenant isolation and source quotes preserved end to end.
+
+### Longer-term direction: consumer and market intelligence
+
+Evolve CVI from an adaptive AI interviewer into an autonomous consumer and market intelligence platform that connects what people say, what they do, and what the market reveals.
+
+**CVI Intelligence Fusion Engine — evidence worlds**
+
+- **Stated perception / consumer intelligence:** what people say, captured through first-party interviews.
+- **Observed behavior / market & commercial signals:** what people do, captured only through authorized behavioral or commercial sources.
+- **Public market sentiment / external signals:** what the market reveals through public, provenance-bearing sources.
+
+Align products/variants, time periods, regions, and segments; detect trends; compare evidence; identify contradictions; and generate testable hypotheses.
+
+**Key capabilities:** perception–behavior gap detection, unified market understanding, continuous market monitoring, historical intelligence, decision support.
+
+**Data strategy:** first-party data foundation; authorized external data; public signal enrichment; clear boundaries against private marketplace data, login bypass, CAPTCHA bypass or access-control bypass.
+
+**Trust guardrails:** preserve provenance; do not merge truths blindly; hypotheses not automatic conclusions; privacy and compliance; reliable product identity via GTIN/EAN/UPC/ASIN/SKU/MPN/model number.
+
+**Phased roadmap:** single-product case study → continuous monitoring → authorized commercial integrations → fusion engine → commercial intelligence service.
