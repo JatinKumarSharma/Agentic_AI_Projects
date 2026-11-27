@@ -135,7 +135,71 @@ Details are in [`docs/security_remediation_plan.md`](docs/security_remediation_p
 
 ## Portfolio notes
 
-See [`PORTFOLIO.md`](PORTFOLIO.md) for a concise case-study version of this project. The repository link is populated; add the live demo URL after deployment.
+See [`PORTFOLIO.md`](PORTFOLIO.md) for a concise case-study version of this project.
+
+### Demo link
+
+**Researcher Dashboard (demo):** https://cvi-portfolio.onrender.com/researcher
+
+This is a demo link only. The researcher route is access-controlled, so treat it as a demo link and not as a production go-live claim. No credentials, participant data, client data or recordings are published in this repository.
+
+---
+
+## Future scope
+
+The items below are future scope, not claims about the current demo. They are split into platform foundations, research measurement, and a longer-term market-intelligence direction.
+
+### Foundational platform scope
+
+- **Production-grade deployment:** Move from the current free Render + Neon demo setup to the strict production target: VPS/custom domain deployment with Docker Compose, managed secrets, HTTPS, backups, monitoring, and production auth hardening.
+- **Reliable, higher-accuracy voice:** Upgrade speech capabilities beyond free-tier constraints by using higher-RAM/paid hosting or self-hosted STT/TTS models for better transcript accuracy, lower latency, and always-on reliability, while preserving typed-input fallback.
+- **Pluggable provider architecture:** Extend the existing client-replaceable boundaries for storage/memory, voice/speech, and LLM model/provider so deployments can swap demo/free providers (Groq, browser speech, Neon/Render) with self-hosted or enterprise-grade alternatives without changing the core evidence-first interview workflow.
+- **Self-hosted/privacy-first profile:** Strengthen the strict self-hosted deployment profile for privacy-sensitive environments, keeping participant data, speech processing, and model inference within controlled infrastructure.
+
+### Research measurement layer
+
+A stronger measurement and operations layer around the loop already built:
+
+- **Question-quality eval set** — consented, human-reviewed transcripts scored for follow-up relevance, redundancy and research progress.
+- **Live timing dashboard** — first-question latency, acknowledgement timing, engagement emit time and failed-job counts in one view.
+- **Researcher review workflow** — human confirmation of evidence claims plus published retention and deletion controls for each study.
+- **Cross-session insight views** — aggregate themes across sessions with tenant isolation and source quotes preserved end to end.
+
+### Longer-term direction: consumer and market intelligence
+
+Evolve CVI from an adaptive AI interviewer into an autonomous consumer and market intelligence platform that connects what people say, what they do, and what the market reveals.
+
+#### CVI Intelligence Fusion Engine — evidence worlds
+
+- **Stated perception / consumer intelligence** — what people say, captured through first-party interviews.
+- **Observed behavior / market & commercial signals** — what people do, captured only through authorized behavioral or commercial sources.
+- **Public market sentiment / external signals** — what the market reveals through public, provenance-bearing sources.
+
+The fusion engine should align products/variants, time periods, regions, and segments; detect trends; compare evidence; identify contradictions; and generate testable hypotheses.
+
+#### Key capabilities
+
+- Perception–behavior gap detection
+- Unified market understanding
+- Continuous market monitoring
+- Historical intelligence
+- Decision support
+
+#### Data strategy
+
+First-party data foundation; authorized external data; public signal enrichment; clear boundaries against private marketplace data, login bypass, CAPTCHA bypass or access-control bypass.
+
+#### Trust guardrails
+
+Preserve provenance; do not merge truths blindly; hypotheses not automatic conclusions; privacy and compliance; reliable product identity via GTIN/EAN/UPC/ASIN/SKU/MPN/model number.
+
+#### Phased roadmap
+
+1. Single-product case study
+2. Continuous monitoring
+3. Authorized commercial integrations
+4. Fusion engine
+5. Commercial intelligence service
 
 ---
 
