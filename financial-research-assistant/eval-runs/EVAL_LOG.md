@@ -565,6 +565,30 @@ Bank, State Bank of India, Tata Consultancy Services, Bajaj Finance, Larsen &
 Toubro and Hindustan Unilever; the eleventh slice was the residual
 `"Other Indian companies"`. The local timing is not a deployment claim.
 
+### Live acceptance evidence
+
+Raw evidence: `eval-runs/live_v9_traces.json`, captured from the deployed API
+with `include_trace: true`.
+
+**Deployed configuration:** service `1.4.1`, backend commit
+`8c5f45031bc10f64c3008a7b326f7fe0bd16f2a7`, Groq `openai/gpt-oss-20b`,
+Tavily web search, FRED configured, `india_market_cap_snapshot: true`,
+guardrails and source tools loaded. No credential values are stored in the
+trace file.
+
+| Probe | Actual tools | Calls / ceiling | Result |
+|---|---|---:|---|
+| Exact reported question | `get_india_market_cap_leaders_tool` | **1 / 2** | Answer returned in **1.88s** from `CompaniesMarketCap`; no timeout, no price-history misroute, and one `pie` spec with 11 labels including the residual segment |
+
+The deployed web UI was then retested with the same wording. It showed
+`ASSISTANT ONLINE`, the ranked table, the explicit 26.0% / 74.0% share split
+against the published India total, and an SVG element labelled
+`Share of Indian market capitalisation pie chart`. The previous
+`"The assistant took too long to respond. Please try again."` message did not
+appear.
+
+Commit trail: `8c5f450` (v9 fix published through pull request #18).
+
 **What v9 demonstrates:** the assistant can answer an aggregate share-of-total
 question from a source that actually publishes the needed category total,
 without inventing a screener, adding a paid key, or asking the model to do
@@ -622,6 +646,7 @@ checks only when a trace justifies them.
 | `web/src/App.tsx` | SVG rendering of chart specs returned by `/ask` |
 | `live_v7_traces.json` | Final v7 tool-call, failure-reporting and chart evidence |
 | `live_v8_traces.json` | Final v8 fallback, source-label and chart evidence |
+| `live_v9_traces.json` | Final v9 market-cap snapshot, tool-selection and pie-chart evidence |
 | `run1-clean-baseline.json` | Original standalone baseline trace |
 | `run2-failure-case.json` | Original standalone failure-case trace |
 | `EVAL_LOG.md` | This document |
