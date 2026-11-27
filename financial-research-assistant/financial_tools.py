@@ -4,6 +4,7 @@ from datetime import date, timedelta
 from openbb import obb
 
 from guardrails import normalize_quote_record
+from source_tools import get_free_historical_prices
 
 
 FMP_API_KEY = os.getenv("FMP_API_KEY")
@@ -80,6 +81,21 @@ def _number(value):
         return None
 
 
+def _free_fallback_or_failure(primary_failure, symbol, days):
+    """Use the no-key source internally without spending another tool call."""
+    fallback = get_free_historical_prices(symbol, days)
+    if isinstance(fallback, dict) and fallback.get("success") is True:
+        return fallback
+
+    failure = dict(primary_failure) if isinstance(primary_failure, dict) else _no_results(symbol)
+    failure["fallback_error"] = {
+        "source": "Yahoo Finance",
+        "error_type": (fallback or {}).get("error_type") if isinstance(fallback, dict) else None,
+        "message": (fallback or {}).get("message") if isinstance(fallback, dict) else None,
+    }
+    return failure
+
+
 def search_stock(symbol: str):
     """Search for a stock ticker and return matching companies."""
     try:
@@ -137,9 +153,11 @@ def get_performance(symbol: str):
 def get_historical_prices(symbol: str, days: int = 30):
     """Get daily OHLC prices for roughly the last N calendar days.
 
-    The result is a compact summary plus the individual price rows. The
-    provider's own per-day change_percent is deliberately omitted so the model
-    cannot confuse it with the explicitly computed period_change_pct.
+    If the configured structured provider restricts or cannot supply the
+    symbol, a no-key public chart source is used internally. That fallback is
+    not exposed as a separate tool, so the agent's call budget is unchanged.
+    The provider's own per-day change_percent is deliberately omitted so the
+    model cannot confuse it with the explicitly computed period_change_pct.
     """
     try:
         days = max(1, min(int(days or 30), 365))
@@ -149,6 +167,7 @@ def get_historical_prices(symbol: str, days: int = 30):
     end = date.today()
     start = end - timedelta(days=days + 10)
 
+    primary_failure = None
     try:
         result = obb.equity.price.historical(
             symbol=symbol,
@@ -156,11 +175,14 @@ def get_historical_prices(symbol: str, days: int = 30):
             end_date=str(end),
         )
     except Exception as exc:
-        return _error_result(exc, symbol)
+        primary_failure = _error_result(exc, symbol)
+    else:
+        records = _records_or_error(result, symbol)
+        if isinstance(records, dict) and records.get("success") is False:
+            primary_failure = records
 
-    records = _records_or_error(result, symbol)
-    if isinstance(records, dict) and records.get("success") is False:
-        return records
+    if primary_failure is not None:
+        return _free_fallback_or_failure(primary_failure, symbol, days)
 
     prices = []
     for record in records:
@@ -176,7 +198,7 @@ def get_historical_prices(symbol: str, days: int = 30):
             prices.append(row)
 
     if not prices:
-        return _no_results(symbol)
+        return _free_fallback_or_failure(_no_results(symbol), symbol, days)
 
     prices = prices[-days:]
     closes = [row["close"] for row in prices]
@@ -188,6 +210,8 @@ def get_historical_prices(symbol: str, days: int = 30):
     return {
         "success": True,
         "symbol": symbol,
+        "source": "OpenBB / FMP",
+        "source_type": "structured",
         "observations": len(prices),
         "period_start": prices[0]["date"],
         "period_end": prices[-1]["date"],

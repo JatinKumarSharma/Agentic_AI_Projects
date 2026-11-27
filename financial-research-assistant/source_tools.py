@@ -9,14 +9,31 @@ import json
 import os
 import re
 import time
-from datetime import datetime, timezone
-from urllib.parse import urlencode, urlparse
+from datetime import date, datetime, timedelta, timezone
+from urllib.parse import quote, urlencode, urlparse
 from urllib.request import Request, urlopen
 
 
 _TIMEOUT = 15
 _SEC_TICKER_CACHE = {"value": None, "updated_at": 0}
 _SEC_FILINGS_CACHE = {}
+
+# No-key public chart endpoint. This is only used as a deterministic fallback
+# when a configured structured provider cannot supply historical prices.
+_YAHOO_CHART_BASE = "https://query1.finance.yahoo.com/v8/finance/chart/"
+_YAHOO_HEADERS = {
+    "User-Agent": (
+        "Mozilla/5.0 (compatible; FinancialResearchAssistant/1.4; "
+        "research prototype)"
+    ),
+    "Accept": "application/json",
+}
+_YAHOO_RANGES = (
+    (31, "1mo"),
+    (93, "3mo"),
+    (186, "6mo"),
+    (366, "1y"),
+)
 
 _DEFAULT_WEB_DOMAINS = (
     "sec.gov",
@@ -155,6 +172,135 @@ def _missing_credentials(source, env_name, symbol=None):
         symbol=symbol,
         error_type="missing_credentials",
     )
+
+
+def _yahoo_range(days):
+    for limit, name in _YAHOO_RANGES:
+        if days <= limit:
+            return name
+    return "max"
+
+
+def get_free_historical_prices(symbol: str, days: int = 30):
+    """Return daily OHLC prices from a no-key public chart endpoint.
+
+    This adapter is deliberately key-free and subscription-free. It is called
+    internally only after a configured structured provider fails, so it does
+    not add a tool call to the agent's deterministic budget.
+    """
+    try:
+        days = max(1, min(int(days or 30), 365))
+    except (TypeError, ValueError):
+        days = 30
+
+    ticker = str(symbol or "").upper().strip()
+    if not ticker:
+        return _no_results(
+            "Yahoo Finance", "A symbol is required for historical prices."
+        )
+
+    range_name = _yahoo_range(days)
+    query = urlencode(
+        {"range": range_name, "interval": "1d", "events": "div,split"}
+    )
+    url = f"{_YAHOO_CHART_BASE}{quote(ticker, safe='.')}?{query}"
+
+    try:
+        payload = _request_json(url, _YAHOO_HEADERS)
+    except Exception as exc:
+        return _error(
+            "Yahoo Finance",
+            exc,
+            symbol=ticker,
+            error_type="provider_error",
+        )
+
+    chart = (payload.get("chart") or {}) if isinstance(payload, dict) else {}
+    api_error = chart.get("error")
+    if api_error:
+        return _error(
+            "Yahoo Finance",
+            str(api_error.get("description") or api_error),
+            symbol=ticker,
+            error_type="provider_error",
+        )
+
+    results = chart.get("result") or []
+    if not results or not isinstance(results[0], dict):
+        return _no_results(
+            "Yahoo Finance",
+            "The public chart endpoint returned no matching records.",
+            ticker,
+        )
+
+    item = results[0]
+    meta = item.get("meta") or {}
+    timestamps = item.get("timestamp") or []
+    quotes = ((item.get("indicators") or {}).get("quote") or [{}])[0]
+    closes = quotes.get("close") or []
+    opens = quotes.get("open") or []
+    highs = quotes.get("high") or []
+    lows = quotes.get("low") or []
+    volumes = quotes.get("volume") or []
+
+    cutoff = date.today() - timedelta(days=days)
+    prices = []
+    for index, timestamp in enumerate(timestamps):
+        try:
+            day = datetime.fromtimestamp(float(timestamp), timezone.utc).date()
+        except (TypeError, ValueError, OSError, OverflowError):
+            continue
+        if day < cutoff:
+            continue
+        close = _number(closes[index] if index < len(closes) else None)
+        if close is None:
+            continue
+        prices.append(
+            {
+                "date": day.isoformat(),
+                "open": _number(opens[index] if index < len(opens) else None),
+                "high": _number(highs[index] if index < len(highs) else None),
+                "low": _number(lows[index] if index < len(lows) else None),
+                "close": close,
+                "volume": _number(volumes[index] if index < len(volumes) else None),
+            }
+        )
+
+    prices = prices[-days:]
+    if not prices:
+        return _no_results(
+            "Yahoo Finance",
+            "The public chart endpoint returned no usable daily closes.",
+            ticker,
+        )
+
+    closes = [row["close"] for row in prices]
+    lows = [row["low"] for row in prices if row["low"] is not None] or closes
+    highs = [row["high"] for row in prices if row["high"] is not None] or closes
+    first, last = closes[0], closes[-1]
+    change = round(((last - first) / first) * 100, 2) if first else None
+
+    return {
+        "success": True,
+        "symbol": str(meta.get("symbol") or ticker).upper(),
+        "source": "Yahoo Finance",
+        "source_type": "structured",
+        "source_url": url,
+        "provider": "yahoo_finance",
+        "requires_key": False,
+        "free_source": True,
+        "currency": meta.get("currency"),
+        "exchange": meta.get("fullExchangeName") or meta.get("exchangeName"),
+        "observations": len(prices),
+        "period_start": prices[0]["date"],
+        "period_end": prices[-1]["date"],
+        "first_close": first,
+        "last_close": last,
+        "period_change_pct": change,
+        "period_low": min(lows),
+        "period_high": max(highs),
+        "prices": prices,
+    }
 
 
 def _sec_headers():
@@ -751,6 +897,7 @@ def source_status():
     return {
         "sec_edgar": True,
         "fred": bool(os.getenv("FRED_API_KEY")),
+        "free_historical_prices": True,
         "web_search_provider": _web_provider(),
         "web_search_domains": list(_allowed_web_domains()),
     }

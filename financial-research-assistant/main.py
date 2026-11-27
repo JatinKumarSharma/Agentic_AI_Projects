@@ -31,7 +31,7 @@ app = FastAPI(
         "An agentic AI research assistant compatible with Groq, OpenAI, "
         "Google Gemini and Ollama models."
     ),
-    version="1.3.3",
+    version="1.4.0",
 )
 
 # Restrict browser access to the configured frontend origins. Add deployed UI
@@ -127,6 +127,7 @@ def version():
         "guardrails_loaded": "guardrails" in sys.modules,
         "source_tools_loaded": "source_tools" in sys.modules,
         "fred_configured": status["fred"],
+        "free_historical_prices": status["free_historical_prices"],
         "web_search_provider": status["web_search_provider"],
         "llm_provider": provider,
         "model": model,

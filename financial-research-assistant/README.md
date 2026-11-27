@@ -562,17 +562,24 @@ Use retrieved data
 
 Tool fails / provider restriction
      ↓
-Explain limitation
+Historical prices: use a no-key public chart fallback
+     ↓
+Other endpoints: explain limitation
      ↓
 Do not fabricate data
 ```
+
+Historical prices can fall back to a public Yahoo Finance chart endpoint. It
+requires no API key, account, or paid subscription, and is called inside the
+existing price tool so the agent's tool-call budget does not change.
 
 ## Current Limitations
 
 This project is an MVP and has several known limitations:
 
 - Financial-data availability depends on the configured OpenBB data providers.
-- Some financial-data endpoints require provider subscriptions or additional API configuration.
+- Historical prices have a no-key public fallback; other endpoints still require
+  their configured provider and may be restricted by its plan.
 - LLM availability and rate limits depend on the configured provider and API quota.
 - Company-news retrieval may return limited or empty results depending on provider availability.
 - Local Ollama inference performance depends on the available hardware.

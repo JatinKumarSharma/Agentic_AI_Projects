@@ -81,7 +81,9 @@ def get_historical_prices_tool(symbol: str, days: int = 30):
     """Get daily OHLC prices for roughly the last N calendar days.
 
     Use this for questions about price movement, ups and downs, trends, recent
-    swings, or a one-month chart. Report period_change_pct directly.
+    swings, or a one-month chart. A no-key public source is used internally if
+    the configured provider restricts the symbol. Report period_change_pct
+    directly.
     """
     return get_historical_prices(symbol, days)
 
