@@ -1,0 +1,175 @@
+{
+  "captured_at": "2026-11-27T09:32:58Z",
+  "elapsed_seconds": 1.88,
+  "service": {
+    "service_version": "1.4.1",
+    "git_commit": "8c5f45031bc10f64c3008a7b326f7fe0bd16f2a7",
+    "guardrails_loaded": true,
+    "source_tools_loaded": true,
+    "fred_configured": true,
+    "free_historical_prices": true,
+    "india_market_cap_snapshot": true,
+    "web_search_provider": "tavily",
+    "llm_provider": "groq",
+    "model": "openai/gpt-oss-20b"
+  },
+  "checks": [
+    {
+      "question": "can you present the top Indian stocks are their contribution in the total market cap in a pie chart format?",
+      "answer": "Using CompaniesMarketCap data retrieved 2026-11-27T09:32:58Z, these are the largest Indian companies in its coverage by market cap:\n\n| Rank | Company | Market cap (USD) | Share of category total |\n|---:|---|---:|---:|\n| 1 | Reliance Industries | $201.01B | 4.53% |\n| 2 | HDFC Bank | $145.85B | 3.29% |\n| 3 | Bharti Airtel | $138.42B | 3.12% |\n| 4 | Jio Platforms Limited | $136.11B | 3.07% |\n| 5 | ICICI Bank | $131.12B | 2.96% |\n| 6 | State Bank of India | $111.97B | 2.53% |\n| 7 | Tata Consultancy Services | $100.72B | 2.27% |\n| 8 | Bajaj Finance | $73.71B | 1.66% |\n| 9 | Larsen & Toubro | $60.96B | 1.37% |\n| 10 | Hindustan Unilever | $53.90B | 1.22% |\n\nThe displayed companies account for 26.0% of the published India market-cap total ($4.43T) across 596 companies. The remaining 74.0% is shown as 'Other Indian companies' so the pie represents the published total.\nThe source is a company-level market-cap ranking, not a tradable-stock recommendation; symbols are reproduced as the provider publishes them.\nSource: https://companiesmarketcap.com/india/largest-companies-in-india-by-market-cap/\n\nText chart from the returned data:\nReliance Industries  █ 4.5%\nHDFC Bank            █ 3.3%\nBharti Airtel        █ 3.1%\nJio Platforms Limited █ 3.1%\nICICI Bank           █ 3.0%\nState Bank of India  █ 2.5%\nTata Consultancy Services █ 2.3%\nBajaj Finance        █ 1.7%\nLarsen & Toubro      █ 1.4%\nHindustan Unilever   █ 1.2%\nOther Indian companies ███████████████ 74.0%",
+      "tool_calls": [
+        {
+          "name": "get_india_market_cap_leaders_tool",
+          "args": {
+            "limit": 10
+          },
+          "result": {
+            "success": true,
+            "source": "CompaniesMarketCap",
+            "source_type": "market_snapshot",
+            "source_url": "https://companiesmarketcap.com/india/largest-companies-in-india-by-market-cap/",
+            "currency": "USD",
+            "retrieved_at": "2026-11-27T09:32:58Z",
+            "scope": "Indian companies covered by the source category page",
+            "company_count": 596,
+            "total_market_cap_usd": 4434000000000.0,
+            "displayed_market_cap_usd": 1153764311576.0,
+            "remaining_market_cap_usd": 3280235688424.0,
+            "share_basis": "company market cap / published India category total",
+            "rows": [
+              {
+                "rank": 1,
+                "name": "Reliance Industries",
+                "source_symbol": "RELIANCE.NS",
+                "market_cap_usd": 201005174921.0,
+                "market_cap_display": "$201.00 B",
+                "share_of_total_pct": 4.53
+              },
+              {
+                "rank": 2,
+                "name": "HDFC Bank",
+                "source_symbol": "HDB",
+                "market_cap_usd": 145848532992.0,
+                "market_cap_display": "$145.84 B",
+                "share_of_total_pct": 3.29
+              },
+              {
+                "rank": 3,
+                "name": "Bharti Airtel",
+                "source_symbol": "BHARTIARTL.NS",
+                "market_cap_usd": 138415497737.0,
+                "market_cap_display": "$138.41 B",
+                "share_of_total_pct": 3.12
+              },
+              {
+                "rank": 4,
+                "name": "Jio Platforms Limited",
+                "source_symbol": "JPL.NS",
+                "market_cap_usd": 136112368207.0,
+                "market_cap_display": "$136.11 B",
+                "share_of_total_pct": 3.07
+              },
+              {
+                "rank": 5,
+                "name": "ICICI Bank",
+                "source_symbol": "IBN",
+                "market_cap_usd": 131119382528.0,
+                "market_cap_display": "$131.11 B",
+                "share_of_total_pct": 2.96
+              },
+              {
+                "rank": 6,
+                "name": "State Bank of India",
+                "source_symbol": "SBIN.NS",
+                "market_cap_usd": 111973168700.0,
+                "market_cap_display": "$111.97 B",
+                "share_of_total_pct": 2.53
+              },
+              {
+                "rank": 7,
+                "name": "Tata Consultancy Services",
+                "source_symbol": "TCS.NS",
+                "market_cap_usd": 100718885901.0,
+                "market_cap_display": "$100.71 B",
+                "share_of_total_pct": 2.27
+              },
+              {
+                "rank": 8,
+                "name": "Bajaj Finance",
+                "source_symbol": "BAJFINANCE.NS",
+                "market_cap_usd": 73714130105.0,
+                "market_cap_display": "$73.71 B",
+                "share_of_total_pct": 1.66
+              },
+              {
+                "rank": 9,
+                "name": "Larsen & Toubro",
+                "source_symbol": "LT.NS",
+                "market_cap_usd": 60957761631.0,
+                "market_cap_display": "$60.95 B",
+                "share_of_total_pct": 1.37
+              },
+              {
+                "rank": 10,
+                "name": "Hindustan Unilever",
+                "source_symbol": "HINDUNILVR.NS",
+                "market_cap_usd": 53899408854.0,
+                "market_cap_display": "$53.89 B",
+                "share_of_total_pct": 1.22
+              }
+            ],
+            "note": "Company-level market-cap ranking from a public source; symbols are as published by the provider and this is not a tradable-stock screen."
+          }
+        }
+      ],
+      "sources": [
+        "CompaniesMarketCap"
+      ],
+      "max_tool_calls": 2,
+      "charts": [
+        {
+          "success": true,
+          "source": "Chart renderer",
+          "source_type": "derived_visualization",
+          "retrieved_at": "2026-11-27T09:32:58Z",
+          "chart_type": "pie",
+          "type": "pie",
+          "title": "Share of Indian market capitalisation",
+          "x_label": "company",
+          "y_label": "market_cap_usd",
+          "labels": [
+            "Reliance Industries",
+            "HDFC Bank",
+            "Bharti Airtel",
+            "Jio Platforms Limited",
+            "ICICI Bank",
+            "State Bank of India",
+            "Tata Consultancy Services",
+            "Bajaj Finance",
+            "Larsen & Toubro",
+            "Hindustan Unilever",
+            "Other Indian companies"
+          ],
+          "values": [
+            201005174921.0,
+            145848532992.0,
+            138415497737.0,
+            136112368207.0,
+            131119382528.0,
+            111973168700.0,
+            100718885901.0,
+            73714130105.0,
+            60957761631.0,
+            53899408854.0,
+            3280235688424.0
+          ],
+          "ascii": "Reliance Industries  █ 4.5%\nHDFC Bank            █ 3.3%\nBharti Airtel        █ 3.1%\nJio Platforms Limited █ 3.1%\nICICI Bank           █ 3.0%\nState Bank of India  █ 2.5%\nTata Consultancy Services █ 2.3%\nBajaj Finance        █ 1.7%\nLarsen & Toubro      █ 1.4%\nHindustan Unilever   █ 1.2%\nOther Indian companies ███████████████ 74.0%",
+          "mermaid": "pie showData\n  title \"Share of Indian market capitalisation\"\n  \"Reliance Industries\" : 2.01005e+11\n  \"HDFC Bank\" : 1.45849e+11\n  \"Bharti Airtel\" : 1.38415e+11\n  \"Jio Platforms Limited\" : 1.36112e+11\n  \"ICICI Bank\" : 1.31119e+11\n  \"State Bank of India\" : 1.11973e+11\n  \"Tata Consultancy Services\" : 1.00719e+11\n  \"Bajaj Finance\" : 7.37141e+10\n  \"Larsen & Toubro\" : 6.09578e+10\n  \"Hindustan Unilever\" : 5.38994e+10\n  \"Other Indian companies\" : 3.28024e+12",
+          "derived_from": "tool_result",
+          "source_url": "https://companiesmarketcap.com/india/largest-companies-in-india-by-market-cap/",
+          "share_basis": "company market cap / published India category total"
+        }
+      ]
+    }
+  ]
+}
