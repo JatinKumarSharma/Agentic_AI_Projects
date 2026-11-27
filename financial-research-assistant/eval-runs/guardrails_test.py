@@ -15,6 +15,7 @@ sys.path.insert(0, str(PROJECT_ROOT))
 
 from guardrails import (
     apply_guardrails,
+    best_guess_symbol,
     iteration_fallback,
     normalize_quote_record,
     percentage_guardrail,
@@ -23,7 +24,9 @@ from guardrails import (
     source_attribution_guardrail,
     sources_from_results,
     tool_plan,
+    wants_chart,
 )
+from visualization import render_chart
 
 RAW_QUOTE = {
     "symbol": "AAPL",
@@ -195,6 +198,59 @@ check(
     "unclassified question gets conservative ceiling",
     open_plan["tools"] == [] and open_plan["max_calls"] == 3,
     f"max={open_plan['max_calls']}",
+)
+
+# 9b. Chart requests add a rendering need without inventing a data source.
+chart_question = (
+    "Present the past one month ups and downs of a tata steel share prices "
+    "in a diagram format."
+)
+chart_plan = tool_plan(chart_question)
+check(
+    "chart question gets data tool plus renderer and a wider ceiling",
+    "get_historical_prices_tool" in chart_plan["tools"]
+    and "render_chart_tool" in chart_plan["tools"]
+    and chart_plan["max_calls"] == 3,
+    f"max={chart_plan['max_calls']}",
+)
+check(
+    "diagram wording is recognized as a chart request",
+    wants_chart(chart_question),
+)
+check(
+    "company name maps to a deterministic fallback symbol",
+    best_guess_symbol(chart_question, ["TATASTEEL"]) == "TATASTEEL.NS",
+)
+
+sample_history = {
+    "success": True,
+    "source": "OpenBB",
+    "prices": [
+        {"date": "2026-11-20", "close": 100.0},
+        {"date": "2026-11-23", "close": 102.5},
+        {"date": "2026-11-24", "close": 101.0},
+        {"date": "2026-11-25", "close": 104.0},
+    ],
+}
+line_chart = render_chart(sample_history, chart_type="line")
+check(
+    "line chart spec uses only returned values",
+    line_chart["success"]
+    and line_chart["labels"] == ["2026-11-20", "2026-11-23", "2026-11-24", "2026-11-25"]
+    and line_chart["values"] == [100.0, 102.5, 101.0, 104.0],
+)
+check(
+    "pie chart rejects negative price values",
+    render_chart(
+        {"labels": ["A", "B"], "values": [-1, 2]}, chart_type="pie"
+    )["error_type"]
+    == "unsupported_values",
+)
+check(
+    "repeated-search guardrail is reported honestly",
+    "repeated ticker searches" in iteration_fallback(
+        [{"success": False, "error_type": "repeated_search_blocked"}]
+    ),
 )
 
 # 10. Web-source attribution is deterministic.
