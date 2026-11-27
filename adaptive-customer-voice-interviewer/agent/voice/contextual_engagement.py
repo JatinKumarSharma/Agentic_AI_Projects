@@ -67,7 +67,7 @@ Spoken response:
         future = _ENGAGEMENT_EXECUTOR.submit(
             invoke_with_rate_limit_retry, llm, prompt
         )
-        result = future.result(timeout=2.0)
+        result = future.result(timeout=4.0)
     except FuturesTimeoutError:
         logger.info("contextual_engagement_timeout")
         return ""

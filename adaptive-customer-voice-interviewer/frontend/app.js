@@ -525,6 +525,17 @@ async function waitForResponseResult() {
             }
         }
 
+        else if (result.status === "waiting" && result.action) {
+            if (voiceResult.pending === 0) {
+                await waitForVoiceFeedback();
+                return {
+                    status: "waiting",
+                    session_id: result.session_id || state.sessionId,
+                    action: result.action,
+                };
+            }
+        }
+
         else if (result.status !== "processing") {
 
             throw new Error(
@@ -758,8 +769,9 @@ async function loadInvitation() {
             : "Welcome to your interview";
 
         speakSystemMessage(
-            "Before we begin, I will check that your microphone and browser are ready " +
-            "automatically. Please allow microphone access when your browser asks."
+            "Welcome. I'll check your microphone and browser. " +
+            "Please allow microphone access when your browser asks. " +
+            "When you're ready, you can click Begin interview to start."
         );
 
         // Compatibility and microphone checks begin as soon as the invitation
@@ -925,10 +937,10 @@ async function runCompatibilityCheck() {
             : "Voice input is unavailable, so you can complete the interview by typing your answers.";
 
         elements.welcomeMessage.textContent =
-            `${welcomeMessage} ${answerGuidance}`;
+            `${welcomeMessage} ${answerGuidance} When you're ready, click Begin interview to start.`;
 
         speakSystemMessage(
-            "Thanks. Your setup is ready. Your interview is about to begin."
+            "Your setup is ready. Whenever you're ready, click Begin interview to start."
         );
     } catch (error) {
         recordFrontendTiming(
