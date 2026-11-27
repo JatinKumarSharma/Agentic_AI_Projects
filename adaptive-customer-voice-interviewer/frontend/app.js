@@ -137,9 +137,13 @@ async function apiRequest(path, options = {}) {
     const data = await response.json().catch(() => ({}));
 
     if (!response.ok) {
-        throw new Error(
+        const error = new Error(
             data.detail || `Request failed (${response.status})`
         );
+        error.status = response.status;
+        error.detail = data.detail;
+        error.data = data;
+        throw error;
     }
 
     return data;
@@ -1016,6 +1020,27 @@ async function startInterview() {
         await handleInterviewAction(result);
 
     } catch (error) {
+        const detail = String(error.detail || error.message || "");
+        const alreadyStarted = error.status === 409 && (
+            detail.includes("already started") ||
+            detail.includes("already being processed")
+        );
+
+        if (alreadyStarted) {
+            try {
+                const resumed = await waitForResponseResult();
+                if (resumed?.status === "waiting" || resumed?.status === "completed") {
+                    await handleInterviewAction(resumed);
+                    return;
+                }
+            } catch (resumeError) {
+                showInterviewError(resumeError.message, {
+                    retryable: resumeError.retryable === true
+                });
+                return;
+            }
+        }
+
         showInterviewError(error.message);
     } finally {
         setBusy(false);
@@ -2589,14 +2614,19 @@ function showInterviewError(message, options = {}) {
     const retryable = options.retryable === true;
 
     hideQuestionLoading();
+
+    const friendly = detail.includes("already started")
+        ? "This interview has already started in this session. Refreshing the current question..."
+        : detail;
+
     elements.interviewError.textContent =
-        detail
-            ? `I couldn't finish that step: ${detail}`
+        friendly
+            ? `I couldn't finish that step: ${friendly}`
             : "Something went wrong. Please try again.";
     elements.voiceStatus.textContent = retryable
         ? "Your answer was saved. Retry processing to continue."
-        : detail
-            ? `Couldn't finish that step: ${detail}`
+        : friendly
+            ? `Couldn't finish that step: ${friendly}`
             : "I couldn't finish that step. Please try again.";
 
     elements.errorActions.classList.toggle("hidden", !retryable);
