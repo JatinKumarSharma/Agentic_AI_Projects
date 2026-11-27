@@ -385,6 +385,82 @@ remain discovery leads requiring corroboration.
 
 ---
 
+## v7 — deterministic chart rendering and honest failure reporting
+
+v7 is a **separate capability trace suite**, not a rerun of the fixed
+five-question suite. No new 5-D average is claimed here: v5 remains the scored
+baseline.
+
+**Final deployed configuration:** service `1.3.3`, backend commit
+`5e24360fa2d7071e71f0976afe655f7fe60dcfe5`, web UI deployed from `a1e334a`,
+Groq `openai/gpt-oss-20b`, Tavily web search, FRED configured, guardrails and
+source tools loaded. CORS remains restricted: the approved Vercel origin is
+echoed, `https://evil.example` receives no `access-control-allow-origin`.
+
+**Deterministic checks:** `guardrails_test.py` **35/35**;
+`source_tools_test.py` **22/22**. Additionally `py_compile` passed for all
+backend modules and the Vite/React/Tailwind web build passed.
+
+### What changed
+
+1. Added a pure-Python chart renderer supporting line, bar, pie and table
+   specs. Chart data comes only from successful tool results; no values are
+   invented.
+2. Added deterministic replacement of a second ticker search with the most
+   likely symbol and the planned data tool, so a failed search cannot consume
+   the whole call budget.
+3. Removed chart rendering from the tools exposed to the model after a live
+   trace showed Groq emitting `render_chart_tool.data` as an array instead of
+   the required object, which the provider rejected before any guardrail ran.
+   Charts are now built deterministically after the data result.
+4. Added a contradiction guardrail: when a price tool succeeded but the model
+   answered "couldn't retrieve", the answer is replaced with a grounded
+   summary using the tool's own fields, including `period_change_pct`.
+5. Added a failed-evidence guardrail: when all results failed, the answer is
+   rebuilt from the actual error types. A provider subscription restriction is
+   reported before the tool-call ceiling instead of being paraphrased away.
+
+### Live acceptance traces
+
+Raw evidence: `eval-runs/live_v7_traces.json`, captured from the deployed API
+with `include_trace: true`.
+
+| Probe | Actual tools | Calls / ceiling | Result |
+|---|---|---:|---|
+| Tata Steel 30-day prices | `search_stock_tool` → `get_historical_prices_tool` → budget-blocked duplicate | **2 / 2** | No repeated ticker search; `subscription_restricted` reported honestly; no invented series |
+| AAPL past-month line chart | `get_historical_prices_tool` | **1 / 2** | 28 successful observations; deterministic line chart with 28 labels/values; `+3.69%` taken directly from the tool field |
+
+The AAPL chart was rendered in the deployed web UI as an SVG polyline with
+date and close-price axis labels. The source label shown with the chart is
+`Chart renderer`, marked `derived_visualization` / `derived_from: tool_result`.
+
+### Trace-driven corrections
+
+Three real failures were found only by reading live responses, not by
+inspecting the prompt:
+
+1. The model sometimes called the chart tool with the wrong `data` shape,
+   producing a provider-side HTTP 500. Removing that tool from model exposure
+   eliminated the class of error.
+2. The model sometimes denied that data had been retrieved even though
+   `get_historical_prices_tool` returned 28 observations. The contradiction
+   guardrail now produces a deterministic evidence-based answer.
+3. The model sometimes reported only the tool-call ceiling while the actual
+   provider error was `subscription_restricted`. The failed-evidence guardrail
+   now preserves the real provider limitation.
+
+**What v7 demonstrates:** the agent still selects only the tools needed for
+the question, but known failure modes are handled deterministically rather
+than trusted to the system prompt. Chart formatting does not spend tool-budget
+calls, and every rendered value is traceable to a successful tool result.
+
+Commit trail: `04af513` (chart/guardrails), `7c5e397` (tests), `5edeeed`
+(web chart UI), `6eb7290`/`7d5cd35`/`dc46c46` (deterministic chart fix),
+`8a30b0f`/`7165af6` (contradiction guardrail), `5e24360`/`a1e334a`
+(provider-failure guardrail).
+
+---
+
 ## Progression summary
 
 Suite average per dimension, identical five-question suite at every iteration:
@@ -428,6 +504,9 @@ checks only when a trace justifies them.
 | `v6_source_suite.py` | Local v6 source/efficiency probe; requires provider keys in `.env` |
 | `live_v6_trace_suite.py` | Deployed v6 trace capture; uses the service's own environment |
 | `live_v6_traces.json` | Final v6 tool-call, source and ceiling evidence |
+| `visualization.py` | Deterministic line/bar/pie/table chart renderer |
+| `web/src/App.tsx` | SVG rendering of chart specs returned by `/ask` |
+| `live_v7_traces.json` | Final v7 tool-call, failure-reporting and chart evidence |
 | `run1-clean-baseline.json` | Original standalone baseline trace |
 | `run2-failure-case.json` | Original standalone failure-case trace |
 | `EVAL_LOG.md` | This document |
