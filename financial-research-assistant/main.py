@@ -112,7 +112,7 @@ def health():
     return {
         "status": "healthy",
         "service": "financial-analyst-api",
-        "version": "1.3.0"
+        "version": app.version
     }
 
 
@@ -122,7 +122,7 @@ def version():
     provider, model = _active_model()
     status = source_status()
     return {
-        "service_version": "1.3.0",
+        "service_version": app.version,
         "git_commit": os.getenv("RENDER_GIT_COMMIT"),
         "guardrails_loaded": "guardrails" in sys.modules,
         "source_tools_loaded": "source_tools" in sys.modules,
