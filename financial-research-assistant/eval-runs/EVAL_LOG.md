@@ -517,6 +517,63 @@ Commit trail: `9091ca6` (no-key fallback and docs), `1174faa` (offline test).
 
 ---
 
+## v9 — market-cap pie from a key-free company snapshot
+
+v9 is a **targeted capability fix**, not a scored 5-D rerun. v5 remains the
+scored baseline and v6/v8 remain separate capability trace suites.
+
+**Reproduced failure:** the exact question
+`"can you present the top Indian stocks are their contribution in the total market cap in a pie chart format?"`
+routed to `get_historical_prices_tool`, stalled in repeated tool planning and
+ended in the web client's 120-second abort message. The deterministic plan
+allowed only that price-history tool, so a ranking/share question had no source
+that could answer it.
+
+### What changed
+
+1. Added `get_india_market_cap_leaders_tool`, backed by a key-free public
+   CompaniesMarketCap India page. It returns ranked rows, each row's share of
+   the source's published India category total, and the total itself. The
+   site-wide global header total is deliberately not used.
+2. Added a market-cap intent pattern before the generic chart pattern. A
+   market-cap ranking question no longer inherits `get_historical_prices_tool`
+   just because it asks for a pie/bar chart; genuine price-history language
+   still keeps the historical-price plan.
+3. Once the market-cap tool succeeds, the answer is produced deterministically
+   from the returned rows and total, and the loop stops. The pie adds an
+   `"Other Indian companies"` residual segment so all slices sum to the
+   published total rather than implying the displayed top names are the whole
+   market.
+4. Fixed the chart-spec contract: `render_chart()` now emits both `type` and
+   `chart_type`, and the web client reads `type ?? chart_type`. This makes a
+   requested pie actually render as a pie.
+5. Budget exhaustion or a repeated call now forces a plain-text conclusion on
+   the next model turn instead of letting the model keep emitting blocked tool
+   calls for the remaining iterations.
+
+**Deterministic checks:** `guardrails_test.py` **38/38**;
+`source_tools_test.py` **28/28**. `py_compile` passed for `agent.py`,
+`source_tools.py`, `guardrails.py`, `visualization.py` and `main.py`; the
+Vite/React/Tailwind web build passed.
+
+**Local end-to-end agent trace:** using the exact question above and the local
+Ollama `gpt-oss:20b` model, the run completed in **78.33s** with one tool call
+(`get_india_market_cap_leaders_tool`, 1/2 ceiling), one `CompaniesMarketCap`
+source, and one `pie` chart with 11 labels. The displayed ten companies were
+Reliance Industries, HDFC Bank, Bharti Airtel, Jio Platforms Limited, ICICI
+Bank, State Bank of India, Tata Consultancy Services, Bajaj Finance, Larsen &
+Toubro and Hindustan Unilever; the eleventh slice was the residual
+`"Other Indian companies"`. The local timing is not a deployment claim.
+
+**What v9 demonstrates:** the assistant can answer an aggregate share-of-total
+question from a source that actually publishes the needed category total,
+without inventing a screener, adding a paid key, or asking the model to do
+arithmetic it cannot reliably justify. The answer and chart are both derived
+from tool-returned values; no client data or internal client rubric content is
+involved.
+
+---
+
 ## Progression summary
 
 Suite average per dimension, identical five-question suite at every iteration:

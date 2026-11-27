@@ -71,9 +71,12 @@ The agent can:
 ### Current capabilities and boundaries
 
 The agent can retrieve quotes, profiles, peers, aggregate performance, analyst
-consensus, company news, and **daily historical OHLC prices** for supported
-symbols. Historical-price questions use `get_historical_prices_tool`, which
-returns a compact table and an explicit `period_change_pct`.
+consensus, company news, **daily historical OHLC prices** for supported
+symbols, and a public snapshot of **largest Indian companies by market cap**.
+Historical-price questions use `get_historical_prices_tool`, which returns a
+compact table and an explicit `period_change_pct`. Market-cap ranking and
+share-of-total questions use `get_india_market_cap_leaders_tool`, which returns
+ranked rows plus the source's published India total.
 
 It can also pull evidence from additional source tiers:
 
@@ -83,6 +86,7 @@ It can also pull evidence from additional source tiers:
 | Primary XBRL facts | `get_sec_company_facts_tool` | SEC company facts (`us-gaap`) |
 | Structured statements | `get_financial_statement_tool` | OpenBB / FMP income, balance-sheet and cash-flow rows |
 | Macro indicators | `get_macro_indicator_tool` | FRED series such as GDP, CPI, unemployment and Treasury yields |
+| Market-cap snapshot | `get_india_market_cap_leaders_tool` | CompaniesMarketCap India category page (no key) |
 | Discovery | `search_financial_web_tool` | Allowlisted public finance domains only |
 
 Each adapter returns `success`, `source`, `source_url`, `retrieved_at`, and a
@@ -91,9 +95,10 @@ the final guardrail either attributes them by domain/URL or adds a source note.
 
 Tool selection is **minimum-sufficient**: a deterministic plan derived from the
 question sets a call ceiling, and the system prompt requires the model to stop
-as soon as the question is answered. The ceiling is not a hard router — the
-model still chooses the exact tools — but it prevents exploratory loops that
-consume time and tokens without adding evidence.
+as soon as the question is answered. The ceiling is not a router — the model
+still chooses the exact tools — but once a ceiling or repeated call fires, the
+next turn is forced to a plain-text conclusion instead of consuming the rest of
+the loop with budget-reached tool calls.
 
 It cannot generate images and has no access to previous conversations.
 Capability, scope, source and tool-loop boundaries are enforced by
@@ -315,6 +320,7 @@ The agent currently has access to tools for:
 -   Analyst consensus
 -   Company news
 -   Daily historical OHLC prices
+-   Largest Indian companies by market cap and share of the published total
 -   SEC filing index and XBRL company facts
 -   Income, balance-sheet and cash-flow statements
 -   FRED macro indicators
@@ -481,7 +487,8 @@ The agent is instructed to:
 14. Explain an ethical or privacy refusal in one sentence and offer a
     data-grounded alternative.
 15. Use the historical-price tool for price movement and report its
-    `period_change_pct` directly.
+    `period_change_pct` directly. Use the India market-cap tool for ranked
+    market-cap and share-of-total questions.
 16. If no tool can answer, say so and list what you can provide.
 17. Stay in the financial research role; no images and no prior-chat memory.
 18. Do not repeat a failed ticker search; try the likely symbol once.
@@ -494,6 +501,11 @@ The agent is instructed to:
 23. Do not call overlapping tools for the same fact unless both are needed.
 24. Report unconfigured sources honestly; never substitute internal knowledge.
 25. Respect the deterministic tool-call ceiling supplied with the question.
+26. Do not repeat a failed ticker search; use the likely symbol once.
+27. Let charts be rendered deterministically after a successful data result;
+    do not call a chart tool.
+28. For a market-cap pie, include the source total minus the displayed rows as
+    "Other Indian companies" so the shares add up to the published total.
 
 ## Evaluation
 

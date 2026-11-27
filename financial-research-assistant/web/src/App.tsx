@@ -13,7 +13,8 @@ const API_URL = (
 ).replace(/\/$/, "");
 
 type ChartSpec = {
-  type: "line" | "bar" | "pie" | "table";
+  type?: "line" | "bar" | "pie" | "table";
+  chart_type?: "line" | "bar" | "pie" | "table";
   title: string;
   labels: string[];
   values: number[];
@@ -40,6 +41,7 @@ const SUGGESTIONS = [
   "What is Apple's current quote and who are its peers?",
   "Compare AAPL and MSFT using live data",
   "What is Tesla's analyst consensus price target?",
+  "Show the top Indian companies by market cap as a pie chart",
 ];
 
 function inline(text: string): ReactNode[] {
@@ -440,10 +442,11 @@ function PieChart({ chart }: { chart: ChartSpec }) {
 function ChartView({ chart }: { chart: ChartSpec }) {
   const values = Array.isArray(chart.values) ? chart.values.filter(Number.isFinite) : [];
   const labels = Array.isArray(chart.labels) ? chart.labels : [];
+  const chartType = chart.type ?? chart.chart_type ?? "line";
   if (values.length === 0) return null;
-  if (chart.type === "pie") return <PieChart chart={{ ...chart, values, labels }} />;
-  if (chart.type === "bar") return <BarChart chart={{ ...chart, values, labels }} />;
-  return <LineChart chart={{ ...chart, values, labels }} />;
+  if (chartType === "pie") return <PieChart chart={{ ...chart, type: chartType, values, labels }} />;
+  if (chartType === "bar") return <BarChart chart={{ ...chart, type: chartType, values, labels }} />;
+  return <LineChart chart={{ ...chart, type: chartType, values, labels }} />;
 }
 
 export default function App() {

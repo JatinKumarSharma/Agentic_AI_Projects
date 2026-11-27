@@ -25,6 +25,7 @@ from guardrails import (
     sources_from_results,
     tool_plan,
     wants_chart,
+    wants_india_market_cap,
 )
 from visualization import render_chart
 
@@ -221,6 +222,25 @@ check(
     best_guess_symbol(chart_question, ["TATASTEEL"]) == "TATASTEEL.NS",
 )
 
+# 9c. Market-cap contribution questions are not misrouted to price history.
+mcap_question = (
+    "can you present the top Indian stocks are their contribution in the "
+    "total market cap in a pie chart format?"
+)
+mcap_plan = tool_plan(mcap_question)
+check(
+    "market-cap pie question plans the market-cap source only",
+    mcap_plan["tools"] == ["get_india_market_cap_leaders_tool"]
+    and mcap_plan["max_calls"] == 2,
+    f"tools={mcap_plan['tools']} max={mcap_plan['max_calls']}",
+)
+check(
+    "market-cap intent is recognized separately from price charts",
+    wants_india_market_cap(mcap_question)
+    and not wants_india_market_cap(chart_question)
+    and wants_chart(mcap_question),
+)
+
 sample_history = {
     "success": True,
     "source": "OpenBB",
@@ -267,6 +287,19 @@ check(
         {"labels": ["A", "B"], "values": [-1, 2]}, chart_type="pie"
     )["error_type"]
     == "unsupported_values",
+)
+positive_pie = render_chart(
+    {
+        "labels": ["Reliance Industries", "Other Indian companies"],
+        "values": [100.0, 300.0],
+    },
+    chart_type="pie",
+)
+check(
+    "pie chart exposes the type key the web UI reads",
+    positive_pie["success"]
+    and positive_pie["type"] == "pie"
+    and positive_pie["chart_type"] == "pie",
 )
 check(
     "repeated-search guardrail is reported honestly",
