@@ -73,7 +73,7 @@ $env:PYTHONPATH='.'
 .\.venv\Scripts\python.exe -m pytest -q
 ```
 
-Latest verified result: **410 passed, 4 skipped**.
+Latest verified result: **435 passed, 4 skipped**.
 
 ---
 
