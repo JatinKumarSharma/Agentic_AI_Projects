@@ -514,8 +514,68 @@ def iteration_fallback(tool_results):
     )
 
 
-def apply_guardrails(answer, tool_results):
+_INABILITY_RE = re.compile(
+    r"(?:could(?:n't|n’t| not)|unable)\s+(?:to\s+)?"
+    r"(?:retrieve|find|get|obtain|load|provide)"
+    r"|no\s+(?:data|results?|records?)\s+(?:was|were|are|is)?\s*"
+    r"(?:returned|available|found)?"
+    r"|data\s+(?:is|was)\s+(?:unavailable|not available)",
+    re.IGNORECASE,
+)
+
+
+def _successful_price_summary(result):
+    """Deterministic answer when a price result exists but the model denies it."""
+    if not isinstance(result, dict) or result.get("success") is not True:
+        return None
+    if "prices" not in result and "observations" not in result:
+        return None
+
+    symbol = str(result.get("symbol") or "the requested symbol")
+    source = str(result.get("source") or "the data provider")
+    parts = [f"Retrieved {symbol} historical prices from {source}"]
+
+    observations = result.get("observations")
+    if isinstance(observations, int):
+        parts.append(f"{observations} observations")
+    start = result.get("period_start")
+    end = result.get("period_end")
+    if start and end:
+        parts.append(f"from {start} to {end}")
+
+    details = []
+    for key, label in (
+        ("first_close", "first close"),
+        ("last_close", "last close"),
+        ("period_low", "period low"),
+        ("period_high", "period high"),
+    ):
+        value = result.get(key)
+        if isinstance(value, (int, float)):
+            details.append(f"{label} {value:g}")
+    pct = result.get("period_change_pct")
+    if isinstance(pct, (int, float)):
+        details.append(f"period change {pct:+.2f}%")
+    if details:
+        parts.append("; ".join(details))
+
+    return ". ".join(parts) + "."
+
+
+def contradiction_guardrail(answer, tool_results, query=""):
+    """Replace a false 'no data' answer when a data tool actually succeeded."""
+    if not _INABILITY_RE.search(answer[:400]):
+        return answer
+    for result in tool_results or []:
+        summary = _successful_price_summary(result)
+        if summary:
+            return summary
+    return answer
+
+
+def apply_guardrails(answer, tool_results, query=""):
     """Run every deterministic guardrail over a final answer."""
+    answer = contradiction_guardrail(answer, tool_results, query)
     answer = percentage_guardrail(answer, verified_percentages(tool_results))
     answer = refusal_guardrail(answer)
     answer = source_attribution_guardrail(answer, tool_results)

@@ -424,7 +424,7 @@ def execute(query: str, return_trace: bool = False):
     # the model remembering a prompt rule.
     early_answer = pre_query_guardrail(query)
     if early_answer:
-        return _finish(apply_guardrails(early_answer, []), [], [])
+        return _finish(apply_guardrails(early_answer, [], query), [], [])
 
     messages = [
         SystemMessage(content=SYSTEM_PROMPT),
@@ -452,7 +452,11 @@ def execute(query: str, return_trace: bool = False):
             answer = normalize_response(response.content).strip()
             if not answer:
                 answer = iteration_fallback(tool_results)
-            return _finish(apply_guardrails(answer, tool_results), tool_calls, tool_results)
+            return _finish(
+                apply_guardrails(answer, tool_results, query),
+                tool_calls,
+                tool_results,
+            )
 
         repeated = False
         budget_hit = len(tool_results) >= max_tool_calls
@@ -569,5 +573,5 @@ def execute(query: str, return_trace: bool = False):
             )
             messages.append(SystemMessage(content=note))
 
-    answer = apply_guardrails(iteration_fallback(tool_results), tool_results)
+    answer = apply_guardrails(iteration_fallback(tool_results), tool_results, query)
     return _finish(answer, tool_calls, tool_results)
