@@ -466,7 +466,7 @@ def source_attribution_guardrail(answer, tool_results):
 
 def iteration_fallback(tool_results):
     """Honest, useful answer when the agent cannot finish within its budget."""
-    messages = []
+    reasons = []
     budget_reached = False
     for result in tool_results or []:
         if not isinstance(result, dict):
@@ -474,33 +474,28 @@ def iteration_fallback(tool_results):
         error_type = result.get("error_type")
         if error_type == "tool_budget_reached":
             budget_reached = True
-            messages.append("the tool-call ceiling was reached")
-            break
+            continue
         if error_type == "subscription_restricted":
-            messages.append(
-                "the provider restricts the requested symbol or endpoint "
-                "under the current subscription"
-            )
-            break
-        if error_type == "missing_credentials":
-            messages.append("the requested source is not configured for this deployment")
-            break
-        if error_type == "no_results":
-            messages.append("the source returned no matching records")
-            break
-        if error_type == "repeated_search_blocked":
-            messages.append(
-                "repeated ticker searches are disabled after the first failure"
-            )
-            break
-        if error_type == "provider_error":
-            messages.append("the data provider returned an error")
-            break
+            reasons.append((0, "the provider restricts the requested symbol or endpoint "
+                            "under the current subscription"))
+        elif error_type == "missing_credentials":
+            reasons.append((0, "the requested source is not configured for this deployment"))
+        elif error_type == "repeated_search_blocked":
+            reasons.append((1, "repeated ticker searches are disabled after the first failure"))
+        elif error_type == "provider_error":
+            reasons.append((2, "the data provider returned an error"))
+        elif error_type == "no_results":
+            reasons.append((3, "the source returned no matching records"))
 
-    reason = f" The last tool result indicated that {messages[0]}." if messages else ""
+    reasons.sort(key=lambda item: item[0])
+    reason_messages = [message for _, message in reasons]
+    if not reason_messages and budget_reached:
+        reason_messages.append("the tool-call ceiling was reached")
+
+    reason = f" The tool results indicated that {reason_messages[0]}." if reason_messages else ""
     lead = (
         "I retrieved partial evidence but could not complete the answer"
-        if budget_reached
+        if budget_reached and not reasons
         else "I couldn't retrieve the requested data with the available tools"
     )
     return (
@@ -533,17 +528,17 @@ def _successful_price_summary(result):
 
     symbol = str(result.get("symbol") or "the requested symbol")
     source = str(result.get("source") or "the data provider")
-    parts = [f"Retrieved {symbol} historical prices from {source}"]
+    lead = f"Retrieved {symbol} historical prices from {source}"
+    details = []
 
     observations = result.get("observations")
     if isinstance(observations, int):
-        parts.append(f"{observations} observations")
+        details.append(f"{observations} observations")
     start = result.get("period_start")
     end = result.get("period_end")
     if start and end:
-        parts.append(f"from {start} to {end}")
+        details.append(f"from {start} to {end}")
 
-    details = []
     for key, label in (
         ("first_close", "first close"),
         ("last_close", "last close"),
@@ -556,10 +551,8 @@ def _successful_price_summary(result):
     pct = result.get("period_change_pct")
     if isinstance(pct, (int, float)):
         details.append(f"period change {pct:+.2f}%")
-    if details:
-        parts.append("; ".join(details))
 
-    return ". ".join(parts) + "."
+    return lead + (": " + "; ".join(details) if details else "") + "."
 
 
 def contradiction_guardrail(answer, tool_results, query=""):
@@ -573,8 +566,21 @@ def contradiction_guardrail(answer, tool_results, query=""):
     return answer
 
 
+def failed_evidence_guardrail(answer, tool_results):
+    """Do not let a model paraphrase failed tool results into a wrong reason."""
+    if not _INABILITY_RE.search(answer[:400]):
+        return answer
+    results = [r for r in tool_results or [] if isinstance(r, dict)]
+    if not results:
+        return answer
+    if any(r.get("success") is True for r in results):
+        return answer
+    return iteration_fallback(results)
+
+
 def apply_guardrails(answer, tool_results, query=""):
     """Run every deterministic guardrail over a final answer."""
+    answer = failed_evidence_guardrail(answer, tool_results)
     answer = contradiction_guardrail(answer, tool_results, query)
     answer = percentage_guardrail(answer, verified_percentages(tool_results))
     answer = refusal_guardrail(answer)
