@@ -12,10 +12,21 @@ const API_URL = (
   "https://financial-analyst-api-fw98.onrender.com"
 ).replace(/\/$/, "");
 
+type ChartSpec = {
+  type: "line" | "bar" | "pie" | "table";
+  title: string;
+  labels: string[];
+  values: number[];
+  x_label?: string;
+  y_label?: string;
+  source?: string;
+};
+
 type Message = {
   id: number;
   role: "user" | "assistant";
   text: string;
+  charts?: ChartSpec[];
 };
 
 type AgentInfo = {
@@ -25,10 +36,10 @@ type AgentInfo = {
 };
 
 const SUGGESTIONS = [
+  "Present the past month of AAPL share prices as a line chart",
   "What is Apple's current quote and who are its peers?",
   "Compare AAPL and MSFT using live data",
   "What is Tesla's analyst consensus price target?",
-  "Find the profile for ticker ZZZZ",
 ];
 
 function inline(text: string): ReactNode[] {
@@ -170,6 +181,271 @@ function MessageBody({ text }: { text: string }) {
   return <div className="message-body text-[14px] leading-[1.75]">{blocks}</div>;
 }
 
+const CHART_COLORS = [
+  "#79a848",
+  "#7fa6ad",
+  "#5e8c2e",
+  "#a7aaa6",
+  "#42651e",
+  "#9fb86f",
+  "#c2d4a0",
+];
+
+function formatValue(value: number): string {
+  const abs = Math.abs(value);
+  if (abs >= 1000) return value.toLocaleString(undefined, { maximumFractionDigits: 0 });
+  if (abs >= 10) return value.toFixed(1);
+  return value.toFixed(2);
+}
+
+function ChartFrame({
+  chart,
+  children,
+}: {
+  chart: ChartSpec;
+  children: ReactNode;
+}) {
+  return (
+    <div className="mt-3 rounded-xl border border-border bg-background/60 p-3">
+      <div className="mb-2 text-[11px] font-semibold uppercase tracking-[0.14em] text-muted">
+        {chart.title}
+      </div>
+      {children}
+      <div className="mt-2 text-[10px] text-subtle">
+        Rendered from tool-returned data
+        {chart.source ? ` · ${chart.source}` : ""}
+      </div>
+    </div>
+  );
+}
+
+function LineChart({ chart }: { chart: ChartSpec }) {
+  const width = 560;
+  const height = 210;
+  const left = 48;
+  const right = 12;
+  const top = 14;
+  const bottom = 30;
+  const values = chart.values;
+  const labels = chart.labels;
+  const rawMin = Math.min(...values);
+  const rawMax = Math.max(...values);
+  const pad = rawMax === rawMin ? Math.max(1, Math.abs(rawMax) * 0.05) : (rawMax - rawMin) * 0.08;
+  const min = rawMin - pad;
+  const max = rawMax + pad;
+  const plotWidth = width - left - right;
+  const plotHeight = height - top - bottom;
+  const x = (index: number) =>
+    left + (values.length === 1 ? plotWidth / 2 : (index / (values.length - 1)) * plotWidth);
+  const y = (value: number) => top + ((max - value) / (max - min)) * plotHeight;
+  const points = values.map((value, index) => `${x(index)},${y(value)}`).join(" ");
+  const labelIndexes = Array.from(
+    new Set([0, Math.floor((labels.length - 1) / 2), labels.length - 1]),
+  ).filter((index) => index >= 0);
+
+  return (
+    <ChartFrame chart={chart}>
+      <svg
+        viewBox={`0 0 ${width} ${height}`}
+        className="h-auto w-full"
+        role="img"
+        aria-label={`${chart.title} line chart`}
+      >
+        {[0, 1, 2, 3].map((step) => {
+          const value = min + ((max - min) * step) / 3;
+          const gy = y(value);
+          return (
+            <g key={step}>
+              <line
+                x1={left}
+                x2={width - right}
+                y1={gy}
+                y2={gy}
+                stroke="#25302a"
+                strokeWidth={1}
+              />
+              <text x={left - 6} y={gy + 3} fill="#6f7672" fontSize="10" textAnchor="end">
+                {formatValue(value)}
+              </text>
+            </g>
+          );
+        })}
+        <polyline points={points} fill="none" stroke="#79a848" strokeWidth={2} />
+        {values.length <= 24 &&
+          values.map((value, index) => (
+            <circle
+              key={index}
+              cx={x(index)}
+              cy={y(value)}
+              r={2.5}
+              fill="#000508"
+              stroke="#79a848"
+              strokeWidth={1.5}
+            />
+          ))}
+        {labelIndexes.map((index) => (
+          <text
+            key={index}
+            x={x(index)}
+            y={height - 8}
+            fill="#6f7672"
+            fontSize="10"
+            textAnchor={index === 0 ? "start" : index === labels.length - 1 ? "end" : "middle"}
+          >
+            {labels[index]}
+          </text>
+        ))}
+      </svg>
+    </ChartFrame>
+  );
+}
+
+function BarChart({ chart }: { chart: ChartSpec }) {
+  const width = 560;
+  const height = 210;
+  const left = 48;
+  const right = 12;
+  const top = 14;
+  const bottom = 30;
+  const values = chart.values;
+  const labels = chart.labels;
+  const peak = Math.max(...values.map(Math.abs)) || 1;
+  const plotWidth = width - left - right;
+  const plotHeight = height - top - bottom;
+  const slot = plotWidth / values.length;
+  const barWidth = Math.max(3, slot * 0.68);
+
+  return (
+    <ChartFrame chart={chart}>
+      <svg
+        viewBox={`0 0 ${width} ${height}`}
+        className="h-auto w-full"
+        role="img"
+        aria-label={`${chart.title} bar chart`}
+      >
+        <line
+          x1={left}
+          x2={width - right}
+          y1={top + plotHeight}
+          y2={top + plotHeight}
+          stroke="#25302a"
+        />
+        {values.map((value, index) => {
+          const barHeight = (Math.abs(value) / peak) * plotHeight;
+          const bx = left + index * slot + (slot - barWidth) / 2;
+          const by = top + plotHeight - barHeight;
+          return (
+            <rect
+              key={index}
+              x={bx}
+              y={by}
+              width={barWidth}
+              height={barHeight}
+              fill={CHART_COLORS[index % CHART_COLORS.length]}
+              opacity={0.9}
+            />
+          );
+        })}
+        {[0, 1, 2].map((step) => (
+          <text
+            key={step}
+            x={left - 6}
+            y={top + (plotHeight * step) / 2 + 3}
+            fill="#6f7672"
+            fontSize="10"
+            textAnchor="end"
+          >
+            {formatValue(peak - (peak * step) / 2)}
+          </text>
+        ))}
+        {Array.from(new Set([0, Math.floor((labels.length - 1) / 2), labels.length - 1]))
+          .filter((index) => index >= 0)
+          .map((index) => (
+            <text
+              key={index}
+              x={left + index * slot + slot / 2}
+              y={height - 8}
+              fill="#6f7672"
+              fontSize="10"
+              textAnchor="middle"
+            >
+              {labels[index]}
+            </text>
+          ))}
+      </svg>
+    </ChartFrame>
+  );
+}
+
+function PieChart({ chart }: { chart: ChartSpec }) {
+  const values = chart.values;
+  const labels = chart.labels;
+  const total = values.reduce((sum, value) => sum + Math.max(0, value), 0) || 1;
+  const cx = 110;
+  const cy = 110;
+  const radius = 82;
+  let angle = -Math.PI / 2;
+
+  const polar = (r: number, radians: number) => ({
+    x: cx + r * Math.cos(radians),
+    y: cy + r * Math.sin(radians),
+  });
+
+  return (
+    <ChartFrame chart={chart}>
+      <div className="flex flex-col items-center gap-3 sm:flex-row sm:items-start">
+        <svg
+          viewBox="0 0 220 220"
+          className="h-44 w-44 shrink-0"
+          role="img"
+          aria-label={`${chart.title} pie chart`}
+        >
+          {values.map((value, index) => {
+            const sweep = (Math.max(0, value) / total) * Math.PI * 2;
+            const start = angle;
+            const end = angle + sweep;
+            angle = end;
+            const startPoint = polar(radius, start);
+            const endPoint = polar(radius, end);
+            const large = sweep > Math.PI ? 1 : 0;
+            const path = `M ${cx} ${cy} L ${startPoint.x} ${startPoint.y} A ${radius} ${radius} 0 ${large} 1 ${endPoint.x} ${endPoint.y} Z`;
+            return (
+              <path
+                key={index}
+                d={path}
+                fill={CHART_COLORS[index % CHART_COLORS.length]}
+                stroke="#000508"
+                strokeWidth={1.5}
+              />
+            );
+          })}
+        </svg>
+        <div className="w-full space-y-1.5">
+          {values.map((value, index) => (
+            <div key={index} className="flex items-center gap-2 text-[11px] text-muted">
+              <span
+                className="h-2.5 w-2.5 shrink-0 rounded-sm"
+                style={{ background: CHART_COLORS[index % CHART_COLORS.length] }}
+              />
+              <span className="min-w-0 flex-1 truncate">{labels[index]}</span>
+              <span className="text-foreground">{((value / total) * 100).toFixed(1)}%</span>
+            </div>
+          ))}
+        </div>
+      </div>
+    </ChartFrame>
+  );
+}
+
+function ChartView({ chart }: { chart: ChartSpec }) {
+  const values = Array.isArray(chart.values) ? chart.values.filter(Number.isFinite) : [];
+  const labels = Array.isArray(chart.labels) ? chart.labels : [];
+  if (values.length === 0) return null;
+  if (chart.type === "pie") return <PieChart chart={{ ...chart, values, labels }} />;
+  if (chart.type === "bar") return <BarChart chart={{ ...chart, values, labels }} />;
+  return <LineChart chart={{ ...chart, values, labels }} />;
+}
+
 export default function App() {
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState("");
@@ -222,13 +498,17 @@ export default function App() {
         signal: controller.signal,
       });
       if (!response.ok) throw new Error(`Request failed (${response.status})`);
-      const data = (await response.json()) as { answer?: string };
+      const data = (await response.json()) as {
+        answer?: string;
+        charts?: ChartSpec[];
+      };
       setMessages((current) => [
         ...current,
         {
           id: nextId.current++,
           role: "assistant",
           text: data.answer || "No answer was returned.",
+          charts: Array.isArray(data.charts) ? data.charts : [],
         },
       ]);
     } catch (cause) {
@@ -336,6 +616,9 @@ export default function App() {
                       {message.role === "user" ? "You" : "Assistant"}
                     </div>
                     <MessageBody text={message.text} />
+                    {message.charts?.map((chart, chartIndex) => (
+                      <ChartView key={chartIndex} chart={chart} />
+                    ))}
                   </div>
                 ))}
 
