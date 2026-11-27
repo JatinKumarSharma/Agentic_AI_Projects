@@ -152,9 +152,13 @@ address bar.
   speech threads are per-container; do not scale the free service to multiple
   instances.
 - The speech bridge uses `CVI_SPEECH_STT_ENGINE=faster-whisper` with
-  `CVI_LOCAL_STT_MODEL=tiny.en` and `CVI_SPEECH_VAD_PROVIDER=energy` to avoid
-  Groq STT egress 403/1010 blocks on hosted demos. Local Piper TTS and large
-  Whisper models remain disabled on this profile; typed fallback is kept.
+  `CVI_LOCAL_STT_MODEL=tiny.en`, `CVI_SPEECH_VAD_PROVIDER=energy`, and low-memory
+  transcription defaults: `cpu_threads=1`, `num_workers=1`, `beam_size=1`,
+  `vad_filter=false` (server VAD already segments), `without_timestamps=true`,
+  `condition_on_previous_text=false`, and `max_audio_seconds=12`. This is the
+  best-effort voice path for Render Free 512MB; typed fallback remains enabled.
+  If Render logs show OOM/restarts, set `CVI_SPEECH_STT_ENABLED=false` for a
+  typed-only public demo.
 - The strict VPS profile in `deployment.md` remains the full production target
   when a domain and paid hosting are available.
 

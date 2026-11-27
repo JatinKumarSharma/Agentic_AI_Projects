@@ -41,10 +41,12 @@ class SegmentationConfig:
             sample_rate=int(number("CVI_SPEECH_SAMPLE_RATE", 16000)),
             frame_samples=int(number("CVI_SPEECH_VAD_FRAME_SAMPLES", 512)),
             min_speech_ms=number("CVI_SPEECH_MIN_SPEECH_MS", 250),
-            end_silence_ms=number("CVI_SPEECH_END_SILENCE_MS", 1800),
+            # 1800ms felt sluggish on Render/energy VAD; 900ms ends turns faster
+            # while still tolerating short pauses.
+            end_silence_ms=number("CVI_SPEECH_END_SILENCE_MS", 900),
             max_segment_ms=number("CVI_SPEECH_MAX_SEGMENT_MS", 30000),
-            min_segment_ms=number("CVI_SPEECH_MIN_SEGMENT_MS", 800),
-            cooldown_ms=number("CVI_SPEECH_COOLDOWN_MS", 300),
+            min_segment_ms=number("CVI_SPEECH_MIN_SEGMENT_MS", 500),
+            cooldown_ms=number("CVI_SPEECH_COOLDOWN_MS", 250),
             tail_silence_ms=number("CVI_SPEECH_TAIL_SILENCE_MS", 200),
         )
 
