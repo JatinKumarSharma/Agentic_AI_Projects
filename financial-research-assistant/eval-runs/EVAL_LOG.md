@@ -461,6 +461,62 @@ Commit trail: `04af513` (chart/guardrails), `7c5e397` (tests), `5edeeed`
 
 ---
 
+## v8 — no-key historical-price fallback
+
+v8 is a **separate capability trace suite**, not a rerun of the fixed
+five-question suite. No new 5-D average is claimed here: v5 remains the scored
+baseline.
+
+**Deployed configuration:** service `1.4.0`, backend commit
+`1174faa14ece34df542fcfb9bb242b8e402d17e1`, Groq `openai/gpt-oss-20b`,
+Tavily web search, FRED configured, `free_historical_prices: true`, guardrails
+and source tools loaded. No credential values are stored in the trace files.
+
+**Deterministic checks:** `guardrails_test.py` **35/35**;
+`source_tools_test.py` **25/25**. Additionally `py_compile` passed for all
+backend modules and the Vite/React/Tailwind web build passed.
+
+### What changed
+
+1. Added a key-free Yahoo Finance public chart adapter to `source_tools.py`.
+   It consumes only the endpoint's JSON and returns the same normalized OHLC
+   summary shape as the primary data tool.
+2. `get_historical_prices()` calls that adapter internally when the configured
+   structured provider returns `subscription_restricted`, `no_results`, a
+   provider error, or an empty price series. This does **not** add a tool to
+   the agent schema and does **not** spend another tool-call budget unit.
+3. Successful primary results are now labelled `OpenBB / FMP`; successful
+   fallback results are labelled `Yahoo Finance` with
+   `requires_key: false` and `free_source: true`. A failed fallback is attached
+   to the original failure as `fallback_error` instead of masking it.
+4. The tool docstring and README now state the fallback explicitly. No new
+   account, paid tier, paid tool, or secret key was introduced.
+
+### Live acceptance traces
+
+Raw evidence: `eval-runs/live_v8_traces.json`, captured from the deployed API
+with `include_trace: true`.
+
+| Probe | Actual tools | Calls / ceiling | Result |
+|---|---|---:|---|
+| Tata Steel 30-day prices | `search_stock_tool` → `get_historical_prices_tool` | **2 / 2** | Primary provider restricted the symbol; deterministic fallback returned 21 Yahoo Finance observations with `period_change_pct: -2.32%` and no invented series |
+| AAPL past-month line chart | `get_historical_prices_tool` | **1 / 2** | Primary provider returned 28 observations; deterministic line chart with 28 labels/values; `+3.69%` taken directly from the tool field |
+
+A separate browser retest asked the deployed UI for a Tata Steel line chart.
+It rendered an SVG polyline with **21 points**, dates from `2026-10-28` to
+`2026-11-27`, axis labels derived from the returned closes, and the source line
+`Retrieved TATASTEEL.NS historical prices from Yahoo Finance`. That later live
+call reported `-2.27%`, which is the tool's own period change for that request.
+
+**What v8 demonstrates:** a provider subscription restriction no longer has to
+end the answer when a legitimate no-key public source can supply the same
+structured data. The agent still uses one data tool; the fallback is a
+deterministic implementation detail, not tool sprawl or a hidden paid service.
+
+Commit trail: `9091ca6` (no-key fallback and docs), `1174faa` (offline test).
+
+---
+
 ## Progression summary
 
 Suite average per dimension, identical five-question suite at every iteration:
@@ -498,15 +554,17 @@ checks only when a trace justifies them.
 | `capability_probe.py` | Reproducible v5 probe for capability, scope and tool-loop regressions |
 | `capability_probe_v5.json` | Seven live probes covering the reported failure session |
 | `guardrails.py` | Deterministic tool-normalization, percentage, refusal, capability, scope and source-plan guardrails |
-| `guardrails_test.py` | Twenty-seven code-level checks against strings from earlier traces |
-| `source_tools.py` | SEC, FRED, structured-statement and allowlisted web adapters |
-| `source_tools_test.py` | Twenty-two offline adapter normalization checks |
+| `guardrails_test.py` | Thirty-five code-level checks against strings from earlier traces |
+| `source_tools.py` | SEC, FRED, structured-statement, no-key chart fallback and allowlisted web adapters |
+| `source_tools_test.py` | Twenty-five offline adapter normalization checks |
+| `financial_tools.py` | Primary market-data tools with internal key-free historical-price fallback |
 | `v6_source_suite.py` | Local v6 source/efficiency probe; requires provider keys in `.env` |
 | `live_v6_trace_suite.py` | Deployed v6 trace capture; uses the service's own environment |
 | `live_v6_traces.json` | Final v6 tool-call, source and ceiling evidence |
 | `visualization.py` | Deterministic line/bar/pie/table chart renderer |
 | `web/src/App.tsx` | SVG rendering of chart specs returned by `/ask` |
 | `live_v7_traces.json` | Final v7 tool-call, failure-reporting and chart evidence |
+| `live_v8_traces.json` | Final v8 fallback, source-label and chart evidence |
 | `run1-clean-baseline.json` | Original standalone baseline trace |
 | `run2-failure-case.json` | Original standalone failure-case trace |
 | `EVAL_LOG.md` | This document |

@@ -1,0 +1,567 @@
+{
+    "captured_at":  "2026-11-27T05:07:23Z",
+    "service":  {
+                    "version":  "1.4.0",
+                    "git_commit":  "1174faa14ece34df542fcfb9bb242b8e402d17e1",
+                    "free_historical_prices":  true,
+                    "model":  "openai/gpt-oss-20b",
+                    "llm_provider":  "groq",
+                    "web_search_provider":  "tavily"
+                },
+    "checks":  [
+                   {
+                       "question":  "Give me historical price data for Tata Steel over the last 30 days",
+                       "answer":  "**Tata Steel (TATASTEEL.NS) â 30âDay Historical Prices (Yahooâ¯Finance)**  \n\n| Date | Open | High | Low | Close | Volume |\n|------|------|------|-----|-------|--------|\n| 2026â10â28 | 170.65 | 170.99 | 168.09 | 169.27 | 12,894,674 |\n| 2026â10â29 | 168.71 | 169.65 | 167.91 | 169.46 | 13,728,789 |\n| 2026â10â30 | 168.50 | 168.69 | 167.21 | 167.60 | 15,613,622 |\n| 2026â11â02 | 170.00 | 177.37 | 170.00 | 177.37 | 29,908,885 |\n| 2026â11â03 | 179.00 | 179.00 | 175.05 | 176.50 | 17,823,743 |\n| 2026â11â04 | 175.00 | 179.93 | 174.24 | 179.93 | 20,742,372 |\n| 2026â11â05 | 182.29 | 183.33 | 179.47 | 182.00 | 28,981,647 |\n| 2026â11â06 | 180.90 | 186.30 | 177.74 | 186.30 | 33,990,807 |\n| 2026â11â09 | 192.50 | 194.00 | 184.34 | 184.85 | 49,905,496 |\n| 2026â11â11 | 186.40 | 189.77 | 185.52 | 189.28 | 33,811,414 |\n| 2026â11â12 | 188.75 | 190.65 | 187.56 | 188.00 | 21,108,363 |\n| 2026â11â13 | 187.00 | 188.43 | 185.80 | 186.68 | 13,050,423 |\n| 2026â11â16 | 187.00 | 187.04 | 181.35 | 182.26 | 19,082,593 |\n| 2026â11â17 | 181.00 | 183.22 | 179.65 | 181.50 | 20,645,185 |\n| 2026â11â18 | 180.75 | 181.41 | 178.40 | 179.00 | 17,340,892 |\n| 2026â11â19 | 178.00 | 181.49 | 177.17 | 180.89 | 13,367,958 |\n| 2026â11â20 | 179.00 | 179.07 | 173.88 | 178.00 | 46,172,019 |\n| 2026â11â23 | 173.70 | 173.80 | 160.50 | 163.00 | 168,843,913 |\n| 2026â11â25 | 163.17 | 164.90 | 156.70 | 159.30 | 134,608,005 |\n| 2026â11â26 | 160.60 | 163.54 | 160.19 | 163.54 | 49,072,962 |\n| 2026â11â27 | 164.70 | 166.60 | 164.20 | 165.34 | 17,623,177 |\n\n**Summary**\n\n- **Period change:** â2.32â¯%  \n- **Lowest price in period:** â¹156.70 (2026â11â23)  \n- **Highest price in period:** â¹194.00 (2026â11â09)  \n\n*Data source: Yahooâ¯Finance (structured)*",
+                       "tool_calls":  [
+                                          {
+                                              "name":  "search_stock_tool",
+                                              "args":  {
+                                                           "symbol":  "TATASTEEL"
+                                                       },
+                                              "result":  {
+                                                             "success":  false,
+                                                             "symbol":  "TATASTEEL",
+                                                             "error_type":  "no_results",
+                                                             "message":  "The provider returned no matching records for this request."
+                                                         }
+                                          },
+                                          {
+                                              "name":  "get_historical_prices_tool",
+                                              "args":  {
+                                                           "days":  30,
+                                                           "symbol":  "TATASTEEL.NS"
+                                                       },
+                                              "result":  {
+                                                             "success":  true,
+                                                             "symbol":  "TATASTEEL.NS",
+                                                             "source":  "Yahoo Finance",
+                                                             "source_type":  "structured",
+                                                             "source_url":  "https://query1.finance.yahoo.com/v8/finance/chart/TATASTEEL.NS?range=1mo\u0026interval=1d\u0026events=div%2Csplit",
+                                                             "provider":  "yahoo_finance",
+                                                             "requires_key":  false,
+                                                             "free_source":  true,
+                                                             "currency":  "INR",
+                                                             "exchange":  "NSE",
+                                                             "observations":  21,
+                                                             "period_start":  "2026-10-28",
+                                                             "period_end":  "2026-11-27",
+                                                             "first_close":  169.27,
+                                                             "last_close":  165.34,
+                                                             "period_change_pct":  -2.32,
+                                                             "period_low":  156.7,
+                                                             "period_high":  194.0,
+                                                             "prices":  [
+                                                                            {
+                                                                                "date":  "2026-10-28",
+                                                                                "open":  170.65,
+                                                                                "high":  170.99,
+                                                                                "low":  168.09,
+                                                                                "close":  169.27,
+                                                                                "volume":  12894674.0
+                                                                            },
+                                                                            {
+                                                                                "date":  "2026-10-29",
+                                                                                "open":  168.71,
+                                                                                "high":  169.65,
+                                                                                "low":  167.91,
+                                                                                "close":  169.46,
+                                                                                "volume":  13728789.0
+                                                                            },
+                                                                            {
+                                                                                "date":  "2026-10-30",
+                                                                                "open":  168.5,
+                                                                                "high":  168.69,
+                                                                                "low":  167.21,
+                                                                                "close":  167.6,
+                                                                                "volume":  15613622.0
+                                                                            },
+                                                                            {
+                                                                                "date":  "2026-11-02",
+                                                                                "open":  170.0,
+                                                                                "high":  177.37,
+                                                                                "low":  170.0,
+                                                                                "close":  177.37,
+                                                                                "volume":  29908885.0
+                                                                            },
+                                                                            {
+                                                                                "date":  "2026-11-03",
+                                                                                "open":  179.0,
+                                                                                "high":  179.0,
+                                                                                "low":  175.05,
+                                                                                "close":  176.5,
+                                                                                "volume":  17823743.0
+                                                                            },
+                                                                            {
+                                                                                "date":  "2026-11-04",
+                                                                                "open":  175.0,
+                                                                                "high":  179.93,
+                                                                                "low":  174.24,
+                                                                                "close":  179.93,
+                                                                                "volume":  20742372.0
+                                                                            },
+                                                                            {
+                                                                                "date":  "2026-11-05",
+                                                                                "open":  182.29,
+                                                                                "high":  183.33,
+                                                                                "low":  179.47,
+                                                                                "close":  182.0,
+                                                                                "volume":  28981647.0
+                                                                            },
+                                                                            {
+                                                                                "date":  "2026-11-06",
+                                                                                "open":  180.9,
+                                                                                "high":  186.3,
+                                                                                "low":  177.74,
+                                                                                "close":  186.3,
+                                                                                "volume":  33990807.0
+                                                                            },
+                                                                            {
+                                                                                "date":  "2026-11-09",
+                                                                                "open":  192.5,
+                                                                                "high":  194.0,
+                                                                                "low":  184.34,
+                                                                                "close":  184.85,
+                                                                                "volume":  49905496.0
+                                                                            },
+                                                                            {
+                                                                                "date":  "2026-11-11",
+                                                                                "open":  186.4,
+                                                                                "high":  189.77,
+                                                                                "low":  185.52,
+                                                                                "close":  189.28,
+                                                                                "volume":  33811414.0
+                                                                            },
+                                                                            {
+                                                                                "date":  "2026-11-12",
+                                                                                "open":  188.75,
+                                                                                "high":  190.65,
+                                                                                "low":  187.56,
+                                                                                "close":  188.0,
+                                                                                "volume":  21108363.0
+                                                                            },
+                                                                            {
+                                                                                "date":  "2026-11-13",
+                                                                                "open":  187.0,
+                                                                                "high":  188.43,
+                                                                                "low":  185.8,
+                                                                                "close":  186.68,
+                                                                                "volume":  13050423.0
+                                                                            },
+                                                                            {
+                                                                                "date":  "2026-11-16",
+                                                                                "open":  187.0,
+                                                                                "high":  187.04,
+                                                                                "low":  181.35,
+                                                                                "close":  182.26,
+                                                                                "volume":  19082593.0
+                                                                            },
+                                                                            {
+                                                                                "date":  "2026-11-17",
+                                                                                "open":  181.0,
+                                                                                "high":  183.22,
+                                                                                "low":  179.65,
+                                                                                "close":  181.5,
+                                                                                "volume":  20645185.0
+                                                                            },
+                                                                            {
+                                                                                "date":  "2026-11-18",
+                                                                                "open":  180.75,
+                                                                                "high":  181.41,
+                                                                                "low":  178.4,
+                                                                                "close":  179.0,
+                                                                                "volume":  17340892.0
+                                                                            },
+                                                                            {
+                                                                                "date":  "2026-11-19",
+                                                                                "open":  178.0,
+                                                                                "high":  181.49,
+                                                                                "low":  177.17,
+                                                                                "close":  180.89,
+                                                                                "volume":  13367958.0
+                                                                            },
+                                                                            {
+                                                                                "date":  "2026-11-20",
+                                                                                "open":  179.0,
+                                                                                "high":  179.07,
+                                                                                "low":  173.88,
+                                                                                "close":  178.0,
+                                                                                "volume":  46172019.0
+                                                                            },
+                                                                            {
+                                                                                "date":  "2026-11-23",
+                                                                                "open":  173.7,
+                                                                                "high":  173.8,
+                                                                                "low":  160.5,
+                                                                                "close":  163.0,
+                                                                                "volume":  168843913.0
+                                                                            },
+                                                                            {
+                                                                                "date":  "2026-11-25",
+                                                                                "open":  163.17,
+                                                                                "high":  164.9,
+                                                                                "low":  156.7,
+                                                                                "close":  159.3,
+                                                                                "volume":  134608005.0
+                                                                            },
+                                                                            {
+                                                                                "date":  "2026-11-26",
+                                                                                "open":  160.6,
+                                                                                "high":  163.54,
+                                                                                "low":  160.19,
+                                                                                "close":  163.54,
+                                                                                "volume":  49072962.0
+                                                                            },
+                                                                            {
+                                                                                "date":  "2026-11-27",
+                                                                                "open":  164.7,
+                                                                                "high":  166.6,
+                                                                                "low":  164.2,
+                                                                                "close":  165.34,
+                                                                                "volume":  17623177.0
+                                                                            }
+                                                                        ]
+                                                         }
+                                          }
+                                      ],
+                       "sources":  [
+                                       "Yahoo Finance"
+                                   ],
+                       "max_tool_calls":  2,
+                       "charts":  [
+
+                                  ]
+                   },
+                   {
+                       "question":  "Present the past month of AAPL share prices as a line chart",
+                       "answer":  "Retrieved AAPL historical prices from OpenBB / FMP: 28 observations; from 2026-10-19 to 2026-11-25; first close 342.94; last close 355.58; period low 325.33; period high 360.83; period change +3.69%.\n\nText chart from the returned data:\nââââ\u0085â\u0085ââ\u0085ââ\u0085ââââââââ\u0085âââââââ\u0085ââ\u0085ââ\nmin 331.9 Â· max 356.27 Â· last 355.58",
+                       "tool_calls":  [
+                                          {
+                                              "name":  "get_historical_prices_tool",
+                                              "args":  {
+                                                           "days":  30,
+                                                           "symbol":  "AAPL"
+                                                       },
+                                              "result":  {
+                                                             "success":  true,
+                                                             "symbol":  "AAPL",
+                                                             "source":  "OpenBB / FMP",
+                                                             "source_type":  "structured",
+                                                             "observations":  28,
+                                                             "period_start":  "2026-10-19",
+                                                             "period_end":  "2026-11-25",
+                                                             "first_close":  342.94,
+                                                             "last_close":  355.58,
+                                                             "period_change_pct":  3.69,
+                                                             "period_low":  325.33,
+                                                             "period_high":  360.83,
+                                                             "prices":  [
+                                                                            {
+                                                                                "date":  "2026-10-19",
+                                                                                "open":  340.78,
+                                                                                "high":  346.0,
+                                                                                "low":  340.12,
+                                                                                "close":  342.94,
+                                                                                "volume":  34573200.0
+                                                                            },
+                                                                            {
+                                                                                "date":  "2026-10-20",
+                                                                                "open":  339.86,
+                                                                                "high":  343.06,
+                                                                                "low":  338.7,
+                                                                                "close":  339.5,
+                                                                                "volume":  35851400.0
+                                                                            },
+                                                                            {
+                                                                                "date":  "2026-10-21",
+                                                                                "open":  339.36,
+                                                                                "high":  345.25,
+                                                                                "low":  338.83,
+                                                                                "close":  343.99,
+                                                                                "volume":  35614126.0
+                                                                            },
+                                                                            {
+                                                                                "date":  "2026-10-22",
+                                                                                "open":  344.94,
+                                                                                "high":  348.36,
+                                                                                "low":  342.28,
+                                                                                "close":  348.22,
+                                                                                "volume":  46898900.0
+                                                                            },
+                                                                            {
+                                                                                "date":  "2026-10-23",
+                                                                                "open":  349.12,
+                                                                                "high":  351.73,
+                                                                                "low":  345.75,
+                                                                                "close":  347.73,
+                                                                                "volume":  39539700.0
+                                                                            },
+                                                                            {
+                                                                                "date":  "2026-10-26",
+                                                                                "open":  343.92,
+                                                                                "high":  347.09,
+                                                                                "low":  341.03,
+                                                                                "close":  343.91,
+                                                                                "volume":  42743600.0
+                                                                            },
+                                                                            {
+                                                                                "date":  "2026-10-27",
+                                                                                "open":  343.17,
+                                                                                "high":  347.78,
+                                                                                "low":  342.39,
+                                                                                "close":  347.1,
+                                                                                "volume":  39984400.0
+                                                                            },
+                                                                            {
+                                                                                "date":  "2026-10-28",
+                                                                                "open":  346.92,
+                                                                                "high":  347.18,
+                                                                                "low":  343.52,
+                                                                                "close":  343.83,
+                                                                                "volume":  35714331.0
+                                                                            },
+                                                                            {
+                                                                                "date":  "2026-10-29",
+                                                                                "open":  348.0,
+                                                                                "high":  351.43,
+                                                                                "low":  347.3,
+                                                                                "close":  348.91,
+                                                                                "volume":  42582126.0
+                                                                            },
+                                                                            {
+                                                                                "date":  "2026-10-30",
+                                                                                "open":  346.72,
+                                                                                "high":  349.19,
+                                                                                "low":  334.35,
+                                                                                "close":  344.63,
+                                                                                "volume":  67842804.0
+                                                                            },
+                                                                            {
+                                                                                "date":  "2026-11-02",
+                                                                                "open":  342.67,
+                                                                                "high":  343.8,
+                                                                                "low":  335.82,
+                                                                                "close":  338.32,
+                                                                                "volume":  64757700.0
+                                                                            },
+                                                                            {
+                                                                                "date":  "2026-11-03",
+                                                                                "open":  325.58,
+                                                                                "high":  334.5,
+                                                                                "low":  325.33,
+                                                                                "close":  331.9,
+                                                                                "volume":  63160026.0
+                                                                            },
+                                                                            {
+                                                                                "date":  "2026-11-04",
+                                                                                "open":  341.57,
+                                                                                "high":  354.5,
+                                                                                "low":  340.99,
+                                                                                "close":  349.51,
+                                                                                "volume":  89637749.0
+                                                                            },
+                                                                            {
+                                                                                "date":  "2026-11-05",
+                                                                                "open":  353.89,
+                                                                                "high":  355.38,
+                                                                                "low":  342.06,
+                                                                                "close":  344.17,
+                                                                                "volume":  75678945.0
+                                                                            },
+                                                                            {
+                                                                                "date":  "2026-11-06",
+                                                                                "open":  338.73,
+                                                                                "high":  345.79,
+                                                                                "low":  338.3,
+                                                                                "close":  342.37,
+                                                                                "volume":  44703806.0
+                                                                            },
+                                                                            {
+                                                                                "date":  "2026-11-09",
+                                                                                "open":  345.0,
+                                                                                "high":  352.33,
+                                                                                "low":  344.78,
+                                                                                "close":  350.69,
+                                                                                "volume":  48753100.0
+                                                                            },
+                                                                            {
+                                                                                "date":  "2026-11-10",
+                                                                                "open":  351.35,
+                                                                                "high":  353.87,
+                                                                                "low":  346.46,
+                                                                                "close":  348.51,
+                                                                                "volume":  29756100.0
+                                                                            },
+                                                                            {
+                                                                                "date":  "2026-11-11",
+                                                                                "open":  349.55,
+                                                                                "high":  355.91,
+                                                                                "low":  349.33,
+                                                                                "close":  355.63,
+                                                                                "volume":  34453500.0
+                                                                            },
+                                                                            {
+                                                                                "date":  "2026-11-12",
+                                                                                "open":  357.81,
+                                                                                "high":  359.37,
+                                                                                "low":  354.41,
+                                                                                "close":  354.88,
+                                                                                "volume":  31875000.0
+                                                                            },
+                                                                            {
+                                                                                "date":  "2026-11-13",
+                                                                                "open":  357.96,
+                                                                                "high":  360.83,
+                                                                                "low":  355.75,
+                                                                                "close":  356.27,
+                                                                                "volume":  40027500.0
+                                                                            },
+                                                                            {
+                                                                                "date":  "2026-11-16",
+                                                                                "open":  357.13,
+                                                                                "high":  357.13,
+                                                                                "low":  351.31,
+                                                                                "close":  352.78,
+                                                                                "volume":  50292200.0
+                                                                            },
+                                                                            {
+                                                                                "date":  "2026-11-17",
+                                                                                "open":  352.83,
+                                                                                "high":  355.36,
+                                                                                "low":  349.67,
+                                                                                "close":  351.91,
+                                                                                "volume":  37407537.0
+                                                                            },
+                                                                            {
+                                                                                "date":  "2026-11-18",
+                                                                                "open":  351.94,
+                                                                                "high":  356.42,
+                                                                                "low":  351.47,
+                                                                                "close":  352.45,
+                                                                                "volume":  34209928.0
+                                                                            },
+                                                                            {
+                                                                                "date":  "2026-11-19",
+                                                                                "open":  352.91,
+                                                                                "high":  355.28,
+                                                                                "low":  346.47,
+                                                                                "close":  349.21,
+                                                                                "volume":  40906900.0
+                                                                            },
+                                                                            {
+                                                                                "date":  "2026-11-20",
+                                                                                "open":  352.87,
+                                                                                "high":  354.34,
+                                                                                "low":  340.56,
+                                                                                "close":  342.56,
+                                                                                "volume":  80692545.0
+                                                                            },
+                                                                            {
+                                                                                "date":  "2026-11-23",
+                                                                                "open":  347.87,
+                                                                                "high":  352.6,
+                                                                                "low":  345.44,
+                                                                                "close":  349.08,
+                                                                                "volume":  58588703.0
+                                                                            },
+                                                                            {
+                                                                                "date":  "2026-11-24",
+                                                                                "open":  348.06,
+                                                                                "high":  354.4,
+                                                                                "low":  345.88,
+                                                                                "close":  354.07,
+                                                                                "volume":  41270446.0
+                                                                            },
+                                                                            {
+                                                                                "date":  "2026-11-25",
+                                                                                "open":  353.48,
+                                                                                "high":  356.75,
+                                                                                "low":  345.13,
+                                                                                "close":  355.58,
+                                                                                "volume":  54285255.0
+                                                                            }
+                                                                        ]
+                                                         }
+                                          }
+                                      ],
+                       "sources":  [
+                                       "OpenBB / FMP"
+                                   ],
+                       "max_tool_calls":  2,
+                       "charts":  [
+                                      {
+                                          "success":  true,
+                                          "source":  "Chart renderer",
+                                          "source_type":  "derived_visualization",
+                                          "retrieved_at":  "2026-11-27T05:07:22Z",
+                                          "chart_type":  "line",
+                                          "title":  "Retrieved price history",
+                                          "x_label":  "date",
+                                          "y_label":  "close",
+                                          "labels":  [
+                                                         "2026-10-19",
+                                                         "2026-10-20",
+                                                         "2026-10-21",
+                                                         "2026-10-22",
+                                                         "2026-10-23",
+                                                         "2026-10-26",
+                                                         "2026-10-27",
+                                                         "2026-10-28",
+                                                         "2026-10-29",
+                                                         "2026-10-30",
+                                                         "2026-11-02",
+                                                         "2026-11-03",
+                                                         "2026-11-04",
+                                                         "2026-11-05",
+                                                         "2026-11-06",
+                                                         "2026-11-09",
+                                                         "2026-11-10",
+                                                         "2026-11-11",
+                                                         "2026-11-12",
+                                                         "2026-11-13",
+                                                         "2026-11-16",
+                                                         "2026-11-17",
+                                                         "2026-11-18",
+                                                         "2026-11-19",
+                                                         "2026-11-20",
+                                                         "2026-11-23",
+                                                         "2026-11-24",
+                                                         "2026-11-25"
+                                                     ],
+                                          "values":  [
+                                                         342.94,
+                                                         339.5,
+                                                         343.99,
+                                                         348.22,
+                                                         347.73,
+                                                         343.91,
+                                                         347.1,
+                                                         343.83,
+                                                         348.91,
+                                                         344.63,
+                                                         338.32,
+                                                         331.9,
+                                                         349.51,
+                                                         344.17,
+                                                         342.37,
+                                                         350.69,
+                                                         348.51,
+                                                         355.63,
+                                                         354.88,
+                                                         356.27,
+                                                         352.78,
+                                                         351.91,
+                                                         352.45,
+                                                         349.21,
+                                                         342.56,
+                                                         349.08,
+                                                         354.07,
+                                                         355.58
+                                                     ],
+                                          "ascii":  "ââââ\u0085â\u0085ââ\u0085ââ\u0085ââââââââ\u0085âââââââ\u0085ââ\u0085ââ\nmin 331.9 Â· max 356.27 Â· last 355.58",
+                                          "mermaid":  "xychart-beta\n  title \"Retrieved price history\"\n  x-axis [\"2026-10-19\", \"2026-10-20\", \"2026-10-21\", \"2026-10-22\", \"2026-10-23\", \"2026-10-26\", \"2026-10-27\", \"2026-10-28\", \"2026-10-29\", \"2026-10-30\", \"2026-11-02\", \"2026-11-03\", \"2026-11-04\", \"2026-11-05\", \"2026-11-06\", \"2026-11-09\", \"2026-11-10\", \"2026-11-11\", \"2026-11-12\", \"2026-11-13\", \"2026-11-16\", \"2026-11-17\", \"2026-11-18\", \"2026-11-19\", \"2026-11-20\", \"2026-11-23\", \"2026-11-24\", \"2026-11-25\"]\n  y-axis \"close\" 331.9 --\u003e 356.27\n  line [342.94, 339.5, 343.99, 348.22, 347.73, 343.91, 347.1, 343.83, 348.91, 344.63, 338.32, 331.9, 349.51, 344.17, 342.37, 350.69, 348.51, 355.63, 354.88, 356.27, 352.78, 351.91, 352.45, 349.21, 342.56, 349.08, 354.07, 355.58]",
+                                          "derived_from":  "tool_result"
+                                      }
+                                  ]
+                   }
+               ]
+}
