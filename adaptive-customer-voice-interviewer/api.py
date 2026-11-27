@@ -2698,6 +2698,17 @@ def get_response_status(
     job = current_response_job(session_id)
 
     if not job:
+        pending = get_pending_interrupt(session_id)
+        if pending:
+            return {
+                "status": "completed",
+                "session_id": session_id,
+                "result": {
+                    "status": "waiting",
+                    "session_id": session_id,
+                    "action": pending,
+                },
+            }
         return {
             "status": "idle",
             "session_id": session_id,

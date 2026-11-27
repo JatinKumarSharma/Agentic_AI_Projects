@@ -525,6 +525,17 @@ async function waitForResponseResult() {
             }
         }
 
+        else if (result.status === "waiting" && result.action) {
+            if (voiceResult.pending === 0) {
+                await waitForVoiceFeedback();
+                return {
+                    status: "waiting",
+                    session_id: result.session_id || state.sessionId,
+                    action: result.action,
+                };
+            }
+        }
+
         else if (result.status !== "processing") {
 
             throw new Error(
