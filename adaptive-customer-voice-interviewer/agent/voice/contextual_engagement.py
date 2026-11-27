@@ -26,7 +26,7 @@ def generate_contextual_engagement(
     if not isinstance(decomposition, dict) or not decomposition:
         return ""
 
-    llm = get_llm(purpose="engagement", max_tokens=40)
+    llm = get_llm(purpose="engagement", max_tokens=24)
 
     prompt = f"""
 You are the conversational engagement component of a
@@ -67,7 +67,7 @@ Spoken response:
         future = _ENGAGEMENT_EXECUTOR.submit(
             invoke_with_rate_limit_retry, llm, prompt
         )
-        result = future.result(timeout=4.0)
+        result = future.result(timeout=3.0)
     except FuturesTimeoutError:
         logger.info("contextual_engagement_timeout")
         return ""

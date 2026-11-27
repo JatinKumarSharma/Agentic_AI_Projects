@@ -392,6 +392,22 @@ function processNextVoiceFeedback() {
         : "reflection";
     const delivery = item.delivery || voiceDelivery(fallbackKind);
 
+    const useBrowserFirst =
+        item.kind === "acknowledgement" ||
+        item.kind === "contextual" ||
+        delivery.provider === "browser";
+
+    const tryBrowser = () => browserSpeak(item.text, delivery, {
+        cancel: false,
+        onend: finishPlayback,
+        onerror: finishPlayback,
+    });
+
+    if (useBrowserFirst) {
+        const started = tryBrowser();
+        if (started) return;
+    }
+
     playRemoteAudio(item.text, delivery)
         .then(played => {
             if (played || finished) {
@@ -399,24 +415,14 @@ function processNextVoiceFeedback() {
                 return;
             }
 
-            const started = browserSpeak(item.text, delivery, {
-                cancel: false,
-                onend: finishPlayback,
-                onerror: finishPlayback,
-            });
-
+            const started = tryBrowser();
             if (!started) {
                 finishPlayback();
             }
         })
         .catch(error => {
             console.warn("Remote voice playback failed:", error);
-            const started = browserSpeak(item.text, delivery, {
-                cancel: false,
-                onend: finishPlayback,
-                onerror: finishPlayback,
-            });
-
+            const started = tryBrowser();
             if (!started) {
                 finishPlayback();
             }
@@ -424,7 +430,7 @@ function processNextVoiceFeedback() {
 }
 
 
-function waitForVoiceFeedback() {
+function waitForVoiceFeedback(timeoutMs = null) {
     if (
         !state.feedbackActive &&
         state.feedbackQueue.length === 0
@@ -433,7 +439,23 @@ function waitForVoiceFeedback() {
     }
 
     return new Promise(resolve => {
-        state.feedbackWaiters.push(resolve);
+        let timer = null;
+        const waiter = () => {
+            if (timer) clearTimeout(timer);
+            resolve();
+        };
+
+        if (Number.isFinite(timeoutMs) && timeoutMs >= 0) {
+            timer = setTimeout(() => {
+                const index = state.feedbackWaiters.indexOf(waiter);
+                if (index !== -1) {
+                    state.feedbackWaiters.splice(index, 1);
+                }
+                resolve();
+            }, timeoutMs);
+        }
+
+        state.feedbackWaiters.push(waiter);
     });
 }
 
@@ -521,6 +543,12 @@ async function waitForResponseResult() {
                 // has played before delivering the next question.
                 await waitForVoiceFeedback();
 
+                return result.result;
+            }
+
+            // Do not let optional contextual engagement delay the interview.
+            if (attempt >= 12) {
+                await waitForVoiceFeedback(1500);
                 return result.result;
             }
         }
@@ -668,14 +696,12 @@ function setCheckState(element, status, message) {
 
 
 function speakSystemMessage(text) {
-    const started = browserSpeak(text, voiceDelivery("system"), {
-        cancel: true,
-    });
-
+    const delivery = voiceDelivery("system");
+    // System messages are best-effort; browser TTS may be blocked before user gesture.
+    const started = browserSpeak(text, delivery, { cancel: true });
     if (!started) {
         console.warn("System message playback is unavailable.");
     }
-
     return started;
 }
 
@@ -1389,6 +1415,27 @@ async function speakText(text, delivery = null) {
     }
 
     elements.voiceStatus.textContent = "Playing interview question...";
+
+    const useBrowserFirst = activeDelivery.provider === "browser";
+
+    if (useBrowserFirst) {
+        await new Promise(resolve => {
+            let settled = false;
+            const finish = result => {
+                if (settled) return;
+                settled = true;
+                finishQuestionPlayback(result);
+                resolve(result);
+            };
+            const started = browserSpeak(text, activeDelivery, {
+                cancel: true,
+                onend: () => finish(true),
+                onerror: () => finish(false),
+            });
+            if (!started) finish(false);
+        });
+        return;
+    }
 
     const played = await playRemoteAudio(text, activeDelivery);
 
