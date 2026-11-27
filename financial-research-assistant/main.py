@@ -31,7 +31,7 @@ app = FastAPI(
         "An agentic AI research assistant compatible with Groq, OpenAI, "
         "Google Gemini and Ollama models."
     ),
-    version="1.3.0",
+    version="1.3.1",
 )
 
 # Restrict browser access to the configured frontend origins. Add deployed UI

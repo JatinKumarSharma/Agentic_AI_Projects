@@ -164,23 +164,6 @@ def search_financial_web_tool(query: str, limit: int = 5):
     return search_financial_web(query, limit)
 
 
-@tool
-def render_chart_tool(
-    data: dict,
-    chart_type: str = "line",
-    title: str = "",
-    x_key: str = "date",
-    y_key: str = "close",
-):
-    """Render data already returned by another tool as a chart specification.
-
-    Supported types: line, bar, pie, table. Never pass invented numbers: only
-    pass a result that a data tool actually returned. Pie charts require
-    non-negative values with a positive total.
-    """
-    return render_chart(data, chart_type, title, x_key, y_key)
-
-
 tools = [
     search_stock_tool,
     get_profile_tool,
@@ -195,7 +178,6 @@ tools = [
     get_macro_indicator_tool,
     get_financial_statement_tool,
     search_financial_web_tool,
-    render_chart_tool,
 ]
 
 
@@ -277,9 +259,9 @@ RULES:
     data-grounded alternative. Never give a bare refusal.
 15. For historical prices, recent price movement, ups and downs, trends, or
     chart-style requests, use get_historical_prices_tool and report its
-    period_change_pct directly. Do not recompute it. For a graph, diagram,
-    pie chart, or visual format, use render_chart_tool only with data that a
-    data tool already returned. Never invent labels or values.
+    period_change_pct directly. Do not recompute it. Visual formatting is
+    added deterministically after the tool result; never invent labels or
+    values.
 16. If no tool can provide the requested data, say so in one sentence and
     list what you can provide. Do not keep calling tools for the same
     missing data.
@@ -306,6 +288,8 @@ RULES:
     reached, answer with the evidence already retrieved or state the gap.
 26. Do not repeat a failed ticker search. Use the most likely symbol once with
     the relevant data tool, then report the provider's actual response.
+ 27. Do not call a chart rendering tool. Charts are created deterministically
+    from successful data-tool results after the answer is produced.
 
 When a tool returns an error, use the tool's error_type and message to
 explain the limitation accurately.

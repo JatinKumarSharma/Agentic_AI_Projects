@@ -139,11 +139,6 @@ _TOOL_PLAN_PATTERNS = (
         "historical prices",
     ),
     (
-        "render_chart_tool",
-        _CHART_RE,
-        "chart rendering",
-    ),
-    (
         "get_consensus_tool",
         re.compile(
             r"\b(?:analyst|consensus|price target|ratings?)\b",
