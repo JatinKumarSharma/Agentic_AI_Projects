@@ -83,6 +83,7 @@ const state = {
     audioMuteNode: null,
     audioChunks: [],
     voiceSupported: false,
+    browserSpeechRecognition: null,
     isRecording: false,
     voiceFinalizing: false,
     voiceResponseSubmitted: false,
@@ -1426,6 +1427,15 @@ function automaticVoiceEnabled() {
 }
 
 
+function browserSpeechRecognitionSupported() {
+    return Boolean(window.SpeechRecognition || window.webkitSpeechRecognition);
+}
+
+function browserSpeechSttEnabled() {
+    const provider = voiceSttProvider();
+    return provider === "browser" || provider === "browser_speech";
+}
+
 function streamingSttEnabled() {
     return ["sarvam", "local"].includes(voiceSttProvider());
 }
@@ -1468,6 +1478,11 @@ function armVoiceAnswerDetection() {
     }
 
     if (elements.transcriptText.value.trim()) {
+        return;
+    }
+
+    if (browserSpeechSttEnabled()) {
+        startVoiceRecording(true);
         return;
     }
 
@@ -1710,6 +1725,250 @@ function encodePcm16Wav(chunks, sampleRate = 16000) {
 }
 
 
+async function startBrowserSpeechRecording(automatic = false) {
+    const SpeechRecognition =
+        window.SpeechRecognition || window.webkitSpeechRecognition;
+
+    if (!SpeechRecognition) {
+        showInterviewError(
+            "This browser does not support live speech recognition. You can type your answer instead."
+        );
+        return;
+    }
+
+    resetVoiceTurnState();
+    state.automaticRecording = automatic;
+    state.autoVadArmed = true;
+    state.isRecording = true;
+    state.speechStartedAt = Date.now();
+
+    elements.interviewError.textContent = "";
+    elements.errorActions.classList.add("hidden");
+    elements.transcriptText.value = "";
+    elements.transcriptStatus.textContent = "Listening...";
+    elements.voiceStatus.textContent = automatic
+        ? "Listening automatically — start speaking whenever you're ready."
+        : "Listening...";
+    elements.recordButton.disabled = false;
+    elements.recordButton.textContent = "Stop speaking";
+    elements.voiceVisual.classList.add("is-recording");
+    elements.interviewStatus.textContent = "LISTENING";
+
+    const recognition = new SpeechRecognition();
+    state.browserSpeechRecognition = recognition;
+    recognition.lang =
+        (state.invitation?.voice_profile?.language || "en-IN").trim() || "en-IN";
+    recognition.interimResults = true;
+    recognition.continuous = true;
+    recognition.maxAlternatives = 1;
+
+    let finalTranscript = "";
+    let interimTranscript = "";
+    let submitted = false;
+    let speechDetected = false;
+    let silenceTimer = null;
+
+    const clearSilenceTimer = () => {
+        if (silenceTimer) {
+            clearTimeout(silenceTimer);
+            silenceTimer = null;
+        }
+    };
+
+    const armSilenceTimer = () => {
+        clearSilenceTimer();
+        silenceTimer = setTimeout(() => {
+            if (!submitted && !state.voiceFinalizing) {
+                stopBrowserSpeechRecording();
+            }
+        }, 1200);
+    };
+
+    recognition.onstart = () => {
+        if (state.browserSpeechRecognition !== recognition) return;
+        elements.voiceStatus.textContent = automatic
+            ? "Listening automatically — speak naturally, then pause when finished."
+            : "Listening... speak naturally, then pause when finished.";
+    };
+
+    recognition.onaudiostart = () => {
+        if (state.browserSpeechRecognition !== recognition) return;
+        elements.transcriptStatus.textContent = "Listening...";
+    };
+
+    recognition.onspeechstart = () => {
+        if (state.browserSpeechRecognition !== recognition) return;
+        speechDetected = true;
+        if (!state.speechStartedAt) {
+            state.speechStartedAt = Date.now();
+        }
+        stopQuestionPlayback();
+        elements.voiceStatus.textContent = "I'm listening to your answer...";
+        elements.transcriptStatus.textContent = "Speech detected";
+    };
+
+    recognition.onresult = (event) => {
+        if (state.browserSpeechRecognition !== recognition) return;
+
+        let nextFinal = "";
+        let nextInterim = "";
+
+        for (let i = event.resultIndex; i < event.results.length; i += 1) {
+            const result = event.results[i];
+            const text = result?.[0]?.transcript || "";
+            if (result.isFinal) {
+                nextFinal += text;
+            } else {
+                nextInterim += text;
+            }
+        }
+
+        if (nextFinal.trim()) {
+            finalTranscript = `${finalTranscript} ${nextFinal}`.trim();
+            speechDetected = true;
+        }
+        interimTranscript = nextInterim.trim();
+
+        const display = `${finalTranscript} ${interimTranscript}`.trim();
+        if (display) {
+            elements.transcriptText.value = display;
+            elements.transcriptStatus.textContent = nextFinal.trim()
+                ? "Transcript updated"
+                : "Speech detected...";
+            armSilenceTimer();
+        }
+    };
+
+    recognition.onerror = (event) => {
+        if (state.browserSpeechRecognition !== recognition) return;
+        clearSilenceTimer();
+        const error = event?.error || "unknown";
+
+        if (error === "no-speech") {
+            elements.voiceStatus.textContent =
+                "I didn't catch that. Speak when you're ready, or type your answer.";
+            return;
+        }
+        if (error === "aborted") {
+            return;
+        }
+
+        state.audioIssue = true;
+        cleanupVoiceResources();
+        showInterviewError(
+            `Speech recognition error: ${error}. You can type your answer instead.`
+        );
+        elements.recordButton.disabled = state.busy || !state.voiceSupported;
+        elements.recordButton.textContent = "Start speaking";
+        elements.voiceVisual.classList.remove("is-recording");
+    };
+
+    recognition.onend = async () => {
+        if (state.browserSpeechRecognition !== recognition) return;
+        clearSilenceTimer();
+        state.browserSpeechRecognition = null;
+        state.isRecording = false;
+        state.autoVadArmed = false;
+        elements.voiceVisual.classList.remove("is-recording");
+        elements.recordButton.textContent = "Start speaking";
+        elements.recordButton.disabled = state.busy || !state.voiceSupported;
+
+        if (submitted || state.voiceResponseSubmitted) {
+            return;
+        }
+
+        const transcript = `${finalTranscript} ${interimTranscript}`.trim() ||
+            elements.transcriptText.value.trim();
+
+        if (!transcript) {
+            if (!state.audioIssue) {
+                elements.voiceStatus.textContent = speechDetected
+                    ? "Speech ended. You can type your answer or try again."
+                    : "No speech detected. You can type your answer instead.";
+                elements.transcriptStatus.textContent = "No response yet";
+            }
+            return;
+        }
+
+        submitted = true;
+        state.voiceFinalizing = true;
+        state.speechDurationMs = state.speechStartedAt
+            ? Math.max(0, Date.now() - state.speechStartedAt)
+            : 0;
+        state.speechEndedAt = monotonicMs();
+        state.acknowledgementTimingRecorded = false;
+
+        elements.recordButton.disabled = true;
+        elements.recordButton.textContent = "Finalizing...";
+        elements.voiceStatus.textContent = "Processing your response...";
+        elements.transcriptStatus.textContent = "Transcript ready";
+        elements.interviewStatus.textContent = "PROCESSING";
+        addActivity("RESPONSE", transcript, "response");
+        markResponseTurnStarted("voice");
+
+        setBusy(true);
+        try {
+            await apiRequest(
+                `/sessions/${encodeURIComponent(state.sessionId)}/responses`,
+                {
+                    method: "POST",
+                    body: JSON.stringify({
+                        transcript,
+                        speech_duration_ms: state.speechDurationMs,
+                        audio_issue: false
+                    })
+                }
+            );
+
+            state.voiceResponseSubmitted = true;
+            const result = await waitForResponseResult();
+            await handleInterviewAction(result);
+        } catch (error) {
+            showInterviewError(error.message, {
+                retryable: error.retryable === true
+            });
+        } finally {
+            state.voiceFinalizing = false;
+            setBusy(false);
+            updateSubmitButton();
+        }
+    };
+
+    try {
+        recognition.start();
+    } catch (error) {
+        state.browserSpeechRecognition = null;
+        state.isRecording = false;
+        state.autoVadArmed = false;
+        elements.voiceVisual.classList.remove("is-recording");
+        elements.recordButton.disabled = state.busy || !state.voiceSupported;
+        elements.recordButton.textContent = "Start speaking";
+        showInterviewError(
+            `Could not start speech recognition: ${error.message}`
+        );
+    }
+}
+
+
+function stopBrowserSpeechRecording() {
+    const recognition = state.browserSpeechRecognition;
+    if (!recognition) return;
+
+    state.voiceFinalizing = true;
+    state.isRecording = false;
+    elements.voiceVisual.classList.remove("is-recording");
+    elements.recordButton.textContent = "Finalizing...";
+    elements.recordButton.disabled = true;
+    elements.voiceStatus.textContent = "Finalizing your response...";
+
+    try {
+        recognition.stop();
+    } catch (error) {
+        console.warn("Could not stop browser speech recognition:", error);
+    }
+}
+
+
 async function startBatchVoiceRecording(automatic = false) {
     resetVoiceTurnState();
     state.automaticRecording = automatic;
@@ -1894,6 +2153,16 @@ async function startVoiceRecording(automatic = false) {
     }
 
     stopAutoMonitor();
+
+    if (browserSpeechSttEnabled()) {
+        if (browserSpeechRecognitionSupported()) {
+            await startBrowserSpeechRecording(automatic);
+            return;
+        }
+
+        elements.voiceStatus.textContent =
+            "This browser does not support live speech recognition. You can type your answer instead.";
+    }
 
     if (!streamingSttEnabled()) {
         await startBatchVoiceRecording(automatic);
@@ -2258,6 +2527,15 @@ async function handleVoiceSocketMessage(message) {
 
 
 function stopVoiceRecording() {
+    if (state.browserSpeechRecognition) {
+        stopBrowserSpeechRecording();
+        return;
+    }
+
+    if (browserSpeechSttEnabled() && !streamingSttEnabled()) {
+        return;
+    }
+
     if (!streamingSttEnabled()) {
         submitRecordedAudio();
         return;
@@ -2317,6 +2595,17 @@ function stopAudioCapture() {
 function cleanupVoiceResources() {
     stopAutoMonitor();
     stopAudioCapture();
+
+    if (state.browserSpeechRecognition) {
+        try {
+            state.browserSpeechRecognition.onend = null;
+            state.browserSpeechRecognition.onerror = null;
+            state.browserSpeechRecognition.stop();
+        } catch (error) {
+            console.warn("Could not stop browser speech recognition:", error);
+        }
+        state.browserSpeechRecognition = null;
+    }
 
     if (state.audioContext) {
         const context = state.audioContext;

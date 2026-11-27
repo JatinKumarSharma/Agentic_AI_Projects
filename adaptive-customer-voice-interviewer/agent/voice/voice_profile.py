@@ -20,6 +20,7 @@ DeliveryKind = Literal[
 
 VoiceProviderName = Literal[
     "browser",
+    "browser_speech",
     "groq",
     "local",
     "sarvam",

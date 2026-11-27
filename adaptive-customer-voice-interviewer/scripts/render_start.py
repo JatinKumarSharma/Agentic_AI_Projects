@@ -43,7 +43,7 @@ def configure_runtime_environment() -> None:
         "CVI_SPEECH_MIN_SEGMENT_MS": "500",
         "CVI_SPEECH_VAD_THRESHOLD": "250",
         "CVI_SPEECH_EMIT_AUDIO_SEGMENTS": "false",
-        "CVI_VOICE_STT_PROVIDER": "local",
+        "CVI_VOICE_STT_PROVIDER": "browser_speech",
         "CVI_VOICE_TTS_PROVIDER": "browser",
         "CVI_LLM_PROVIDER": "groq",
         "CVI_LOG_FORMAT": "json",

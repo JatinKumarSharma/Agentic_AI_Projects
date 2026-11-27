@@ -53,7 +53,7 @@ services:
       - key: CVI_VOICE_LANGUAGE
         value: en-IN
       - key: CVI_VOICE_STT_PROVIDER
-        value: local
+        value: browser_speech
       - key: CVI_VOICE_STT_FALLBACKS
         value: local,typed
       - key: CVI_VOICE_TTS_PROVIDER
