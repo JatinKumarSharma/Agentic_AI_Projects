@@ -148,7 +148,12 @@ def readiness_status() -> dict[str, str]:
     if tts_enabled() and os.getenv("CVI_LOCAL_TTS_MODEL", "").strip():
         tts = "configured"
 
-    return {"stt": stt, "tts": tts, "vad": "configured"}
+    return {
+        "stt": stt,
+        "tts": tts,
+        "vad": "configured",
+        "stt_engine": os.getenv("CVI_SPEECH_STT_ENGINE", "faster-whisper").strip(),
+    }
 
 
 def _parse_multipart(

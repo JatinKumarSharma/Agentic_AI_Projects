@@ -78,12 +78,32 @@ services:
         value: cpu
       - key: CVI_LOCAL_STT_COMPUTE_TYPE
         value: int8
+      - key: CVI_LOCAL_STT_CPU_THREADS
+        value: "1"
+      - key: CVI_LOCAL_STT_NUM_WORKERS
+        value: "1"
+      - key: CVI_LOCAL_STT_BEAM_SIZE
+        value: "1"
+      - key: CVI_LOCAL_STT_VAD_FILTER
+        value: "false"
+      - key: CVI_LOCAL_STT_WITHOUT_TIMESTAMPS
+        value: "true"
+      - key: CVI_LOCAL_STT_CONDITION_ON_PREVIOUS_TEXT
+        value: "false"
+      - key: CVI_LOCAL_STT_MAX_AUDIO_SECONDS
+        value: "12"
       - key: CVI_SPEECH_STT_ENABLED
         value: "true"
       - key: CVI_SPEECH_TTS_ENABLED
         value: "false"
       - key: CVI_SPEECH_VAD_PROVIDER
         value: energy
+      - key: CVI_SPEECH_END_SILENCE_MS
+        value: "900"
+      - key: CVI_SPEECH_MIN_SEGMENT_MS
+        value: "500"
+      - key: CVI_SPEECH_VAD_THRESHOLD
+        value: "250"
       - key: CVI_SPEECH_EMIT_AUDIO_SEGMENTS
         value: "false"
       - key: CVI_DEMO_LINK_TTL_MINUTES

@@ -3386,7 +3386,10 @@ async def local_voice_websocket(
                             })
                             continue
 
-                        if speech_ms < 900 or word_count < 2:
+                        # Keep the floor low: energy VAD on 512MB hosts can
+                        # end segments late, and over-filtering drops valid
+                        # short answers. The frontend still allows manual stop.
+                        if speech_ms < 350 or word_count < 1:
                             await websocket.send_json({
                                 "type": "warning",
                                 "message": (

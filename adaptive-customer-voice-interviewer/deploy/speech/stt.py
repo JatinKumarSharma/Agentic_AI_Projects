@@ -5,10 +5,15 @@ service uses this narrow boundary so faster-whisper can be replaced without
 touching turn detection or the interview engine.
 """
 
+import gc
 import io
+import logging
 import os
+import resource
 import wave
 from abc import ABC, abstractmethod
+
+logger = logging.getLogger(__name__)
 
 
 def pcm16_to_wav(pcm: bytes, sample_rate: int = 16000) -> bytes:
@@ -52,6 +57,44 @@ def wav_to_float32(wav: bytes):
     return np.ascontiguousarray(audio, dtype=np.float32)
 
 
+def _env_int(name: str, default: int, *, minimum: int = 0) -> int:
+    raw = os.getenv(name)
+    if raw is None or not raw.strip():
+        return default
+    try:
+        value = int(raw)
+    except (TypeError, ValueError):
+        return default
+    return max(minimum, value)
+
+
+def _env_bool(name: str, default: bool) -> bool:
+    raw = os.getenv(name)
+    if raw is None or not raw.strip():
+        return default
+    return raw.strip().lower() in {"1", "true", "yes", "on"}
+
+
+def _rss_mb() -> float | None:
+    """Best-effort process RSS for low-memory diagnostics."""
+    try:
+        with open("/proc/self/status", "r", encoding="utf-8") as handle:
+            for line in handle:
+                if line.startswith("VmRSS:"):
+                    return round(int(line.split()[1]) / 1024, 1)
+    except Exception:
+        pass
+
+    try:
+        rss = resource.getrusage(resource.RUSAGE_SELF).ru_maxrss
+        # Linux reports ru_maxrss in KiB; macOS reports bytes.
+        if rss > 10_000_000:
+            return round(rss / (1024 * 1024), 1)
+        return round(rss / 1024, 1)
+    except Exception:
+        return None
+
+
 class STTEngine(ABC):
     name = "base"
 
@@ -84,6 +127,20 @@ class FasterWhisperSTTEngine(STTEngine):
         self.compute_type = compute_type or os.getenv(
             "CVI_LOCAL_STT_COMPUTE_TYPE", "int8"
         )
+        self.cpu_threads = _env_int("CVI_LOCAL_STT_CPU_THREADS", 1, minimum=1)
+        self.num_workers = _env_int("CVI_LOCAL_STT_NUM_WORKERS", 1, minimum=1)
+        self.beam_size = _env_int("CVI_LOCAL_STT_BEAM_SIZE", 1, minimum=1)
+        self.best_of = _env_int("CVI_LOCAL_STT_BEST_OF", 1, minimum=1)
+        self.vad_filter = _env_bool("CVI_LOCAL_STT_VAD_FILTER", False)
+        self.without_timestamps = _env_bool(
+            "CVI_LOCAL_STT_WITHOUT_TIMESTAMPS", True
+        )
+        self.condition_on_previous_text = _env_bool(
+            "CVI_LOCAL_STT_CONDITION_ON_PREVIOUS_TEXT", False
+        )
+        self.max_audio_seconds = float(
+            os.getenv("CVI_LOCAL_STT_MAX_AUDIO_SECONDS", "12").strip() or "12"
+        )
         self._model = None
         self._loaded_model = None
 
@@ -91,12 +148,25 @@ class FasterWhisperSTTEngine(STTEngine):
         if self._model is None or self._loaded_model != self.model:
             from faster_whisper import WhisperModel
 
+            before = _rss_mb()
             self._model = WhisperModel(
                 self.model,
                 device=self.device,
                 compute_type=self.compute_type,
+                cpu_threads=self.cpu_threads,
+                num_workers=self.num_workers,
             )
             self._loaded_model = self.model
+            logger.info(
+                "faster_whisper_model_loaded model=%s device=%s compute_type=%s cpu_threads=%s num_workers=%s rss_mb=%s rss_before_mb=%s",
+                self.model,
+                self.device,
+                self.compute_type,
+                self.cpu_threads,
+                self.num_workers,
+                _rss_mb(),
+                before,
+            )
 
         return self._model
 
@@ -110,14 +180,42 @@ class FasterWhisperSTTEngine(STTEngine):
         model = self._get_model()
         code = (language or "").strip().split("-")[0].split("_")[0].lower()
         audio = wav_to_float32(wav)
-        segments, info = model.transcribe(
-            audio,
-            language=code or None,
-            initial_prompt=prompt or None,
-            vad_filter=True,
-        )
 
-        text = "".join(segment.text for segment in segments).strip()
+        max_samples = int(self.max_audio_seconds * 16000)
+        if max_samples > 0 and len(audio) > max_samples:
+            audio = audio[:max_samples]
+
+        before = _rss_mb()
+        try:
+            segments, info = model.transcribe(
+                audio,
+                language=code or None,
+                initial_prompt=prompt or None,
+                vad_filter=self.vad_filter,
+                beam_size=self.beam_size,
+                best_of=self.best_of,
+                temperature=0.0,
+                condition_on_previous_text=self.condition_on_previous_text,
+                without_timestamps=self.without_timestamps,
+            )
+            text = "".join(segment.text for segment in segments).strip()
+        finally:
+            # Drop large numpy/transcription intermediates promptly on 512MB hosts.
+            try:
+                del audio
+            except Exception:
+                pass
+            gc.collect()
+
+        after = _rss_mb()
+        logger.info(
+            "faster_whisper_transcribed model=%s duration_s=%s text_chars=%s rss_before_mb=%s rss_after_mb=%s",
+            self.model,
+            getattr(info, "duration", None),
+            len(text),
+            before,
+            after,
+        )
 
         return {
             "text": text,
@@ -127,6 +225,13 @@ class FasterWhisperSTTEngine(STTEngine):
                 "engine": self.name,
                 "model": self.model,
                 "duration": getattr(info, "duration", None),
+                "language_probability": getattr(info, "language_probability", None),
+                "beam_size": self.beam_size,
+                "cpu_threads": self.cpu_threads,
+                "num_workers": self.num_workers,
+                "vad_filter": self.vad_filter,
+                "without_timestamps": self.without_timestamps,
+                "rss_mb": after,
             },
         }
 
@@ -137,6 +242,11 @@ class FasterWhisperSTTEngine(STTEngine):
             "engine": self.name,
             "status": "ready",
             "model": self.model,
+            "cpu_threads": self.cpu_threads,
+            "num_workers": self.num_workers,
+            "beam_size": self.beam_size,
+            "vad_filter": self.vad_filter,
+            "rss_mb": _rss_mb(),
         }
 
 
@@ -209,6 +319,13 @@ def create_stt_engine(name: str | None = None) -> STTEngine:
         os.getenv("CVI_LOCAL_STT_MODEL", "small"),
         os.getenv("CVI_LOCAL_STT_DEVICE", "cpu"),
         os.getenv("CVI_LOCAL_STT_COMPUTE_TYPE", "int8"),
+        os.getenv("CVI_LOCAL_STT_CPU_THREADS", "1"),
+        os.getenv("CVI_LOCAL_STT_NUM_WORKERS", "1"),
+        os.getenv("CVI_LOCAL_STT_BEAM_SIZE", "1"),
+        os.getenv("CVI_LOCAL_STT_VAD_FILTER", "false"),
+        os.getenv("CVI_LOCAL_STT_WITHOUT_TIMESTAMPS", "true"),
+        os.getenv("CVI_LOCAL_STT_CONDITION_ON_PREVIOUS_TEXT", "false"),
+        os.getenv("CVI_LOCAL_STT_MAX_AUDIO_SECONDS", "12"),
         os.getenv("GROQ_STT_MODEL", "whisper-large-v3-turbo"),
     )
 

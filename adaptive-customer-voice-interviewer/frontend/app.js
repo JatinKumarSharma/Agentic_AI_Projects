@@ -1977,32 +1977,58 @@ async function startVoiceRecording(automatic = false) {
         };
 
         state.voiceSocket.onclose = () => {
+            const hadTranscript = Boolean(elements.transcriptText.value.trim());
+            const wasRecording = state.isRecording;
+            const wasFinalizing = state.voiceFinalizing;
+
             cleanupVoiceResources();
 
-            if (!state.voiceResponseSubmitted) {
-                const wasFinalizing = state.voiceFinalizing;
+            if (state.voiceResponseSubmitted) {
+                return;
+            }
 
-                state.voiceFinalizing = false;
-                state.isRecording = false;
+            state.voiceFinalizing = false;
+            state.isRecording = false;
 
-                elements.voiceVisual.classList.remove("is-recording");
-                elements.recordButton.textContent = "Start speaking";
-                elements.recordButton.disabled =
-                    state.busy || !state.voiceSupported;
+            elements.voiceVisual.classList.remove("is-recording");
+            elements.recordButton.textContent = "Start speaking";
+            elements.recordButton.disabled =
+                state.busy || !state.voiceSupported;
 
-                if (wasFinalizing) {
-                    showInterviewError(
-                        "Voice connection closed before your response was submitted. Please try again or type your answer."
-                    );
-
-                    elements.transcriptStatus.textContent =
-                        elements.transcriptText.value.trim()
-                            ? "Transcript not submitted. Review and submit it."
-                            : "No response submitted.";
-                } else if (!state.audioIssue) {
+            if (wasFinalizing) {
+                if (hadTranscript && !state.busy) {
                     elements.voiceStatus.textContent =
-                        "Voice connection closed. You can type your answer.";
+                        "Connection closed. You can submit the transcript below.";
+                    elements.transcriptStatus.textContent =
+                        "Transcript ready - review and submit it.";
+                    elements.interviewStatus.textContent = "LISTENING";
+                    return;
                 }
+
+                showInterviewError(
+                    "Voice connection closed before your response was submitted. Please try again or type your answer."
+                );
+                elements.transcriptStatus.textContent =
+                    hadTranscript
+                        ? "Transcript not submitted. Review and submit it."
+                        : "No response submitted.";
+                return;
+            }
+
+            if (wasRecording && !state.audioIssue) {
+                state.audioIssue = true;
+                showInterviewError(
+                    "Voice connection closed. Your mic stopped. You can try speaking again, or type your answer."
+                );
+                elements.transcriptStatus.textContent = hadTranscript
+                    ? "Transcript captured before disconnect - review and submit it."
+                    : "No response submitted.";
+                return;
+            }
+
+            if (!state.audioIssue) {
+                elements.voiceStatus.textContent =
+                    "Voice connection closed. You can type your answer.";
             }
         };
 
@@ -2067,11 +2093,12 @@ async function startAudioCapture() {
         ) {
             // Avoid feedback loops: do not stream mic audio while system
             // audio is playing through speakers, plus a short hangover.
+            // Keep hangover small to avoid clipping the user's first words.
             const systemSpeaking =
                 state.feedbackActive ||
                 state.questionPlaybackActive ||
                 Boolean(window.speechSynthesis?.speaking);
-            const hangoverMs = 600;
+            const hangoverMs = 150;
             const inHangover =
                 state.systemAudioEndedAt &&
                 (monotonicMs() - state.systemAudioEndedAt) < hangoverMs;
@@ -2147,6 +2174,7 @@ async function handleVoiceSocketMessage(message) {
 
         case "speech_start":
             state.speechStartedAt = Date.now();
+            stopQuestionPlayback();
             elements.voiceStatus.textContent =
                 "I'm listening to your answer...";
             elements.transcriptStatus.textContent = "Speech detected";

@@ -166,4 +166,20 @@ def create_vad_provider(name: str | None = None) -> VADProvider:
 
         return SileroVADProvider(threshold=threshold)
 
+    if provider_class is EnergyVADProvider:
+        def _env_float(name: str, default: float) -> float:
+            raw = os.getenv(name, "").strip()
+            if not raw:
+                return default
+            try:
+                return float(raw)
+            except ValueError:
+                return default
+
+        return EnergyVADProvider(
+            threshold=_env_float("CVI_SPEECH_VAD_THRESHOLD", 300.0),
+            multiplier=_env_float("CVI_SPEECH_VAD_MULTIPLIER", 1.8),
+            alpha=_env_float("CVI_SPEECH_VAD_ALPHA", 0.05),
+        )
+
     return provider_class()
