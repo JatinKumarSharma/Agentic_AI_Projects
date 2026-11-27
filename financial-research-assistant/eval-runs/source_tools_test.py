@@ -403,6 +403,7 @@ check(
     status["sec_edgar"] is True
     and status["fred"] is True
     and status["free_historical_prices"] is True
+    and status["india_market_cap_snapshot"] is True
     and status["web_search_provider"] == "tavily"
     and all("dummy-for-test" not in str(value) for value in status.values()),
 )
@@ -461,6 +462,53 @@ check(
     free_failure["success"] is False
     and free_failure["error_type"] == "provider_error"
     and "NOPE" in free_failure["symbol"],
+)
+
+# 11. Indian market-cap snapshot uses the category total, not the site total.
+mcap_markup = """
+<div class="site-header">
+  total market cap: <a class="total-mcap-link">$143.996 T</a>
+</div>
+<div class="category-stats-bar">
+  Companies: <span class="companies-count font-weight-bold">596</span>
+  total market cap: <span class="font-weight-bold">$4.436 T</span>
+</div>
+<table><tbody>
+<tr><td class="rank-td td-right" data-sort="1">1</td>
+<td><div class="company-name">Reliance Industries</div>
+<div class="company-code">RELIANCE.NS</div></td>
+<td class="td-right" data-sort="200888573632"><span class="currency-symbol-left">$</span>200.88 B</td></tr>
+<tr><td class="rank-td td-right" data-sort="2">2</td>
+<td><div class="company-name">HDFC Bank</div>
+<div class="company-code">HDB</div></td>
+<td class="td-right" data-sort="145848532992"><span class="currency-symbol-left">$</span>145.84 B</td></tr>
+</tbody></table>
+"""
+parsed_mcap = source_tools.parse_india_market_cap_page(mcap_markup, 10)
+check(
+    "India category total is parsed from the stats bar",
+    parsed_mcap["total_market_cap_usd"] == 4.436e12
+    and parsed_mcap["company_count"] == 596,
+)
+check(
+    "market-cap rows keep source values and shares",
+    len(parsed_mcap["rows"]) == 2
+    and parsed_mcap["rows"][0]["name"] == "Reliance Industries"
+    and parsed_mcap["rows"][0]["source_symbol"] == "RELIANCE.NS"
+    and parsed_mcap["rows"][0]["market_cap_usd"] == 200888573632
+    and parsed_mcap["rows"][0]["share_of_total_pct"] == 4.53,
+)
+with patch.object(source_tools, "urlopen") as mocked_open:
+    mocked_open.return_value.__enter__.return_value.read.return_value = (
+        mcap_markup.encode("utf-8")
+    )
+    mcap_snapshot = source_tools.get_india_market_cap_leaders(10)
+check(
+    "market-cap snapshot reports a sourced USD total",
+    mcap_snapshot["success"] is True
+    and mcap_snapshot["source"] == "CompaniesMarketCap"
+    and mcap_snapshot["currency"] == "USD"
+    and mcap_snapshot["remaining_market_cap_usd"] > 0,
 )
 
 failed = [name for name, passed, _ in results if not passed]

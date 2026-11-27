@@ -79,11 +79,28 @@ _CHART_RE = re.compile(
     re.IGNORECASE,
 )
 
+# v9 market-cap ranking intent. The word "chart" alone must not route an
+# aggregate ranking question to the historical-price adapter.
+_INDIA_MCAP_RE = re.compile(
+    r"\b(?:top|largest|biggest|leading|highest)\b[\s\S]{0,80}?"
+    r"\b(?:india|indian)\b[\s\S]{0,80}?\b(?:stocks?|compan(?:y|ies)|firms?)\b"
+    r"|\b(?:india|indian)\b[\s\S]{0,80}?\bmarket\s*cap(?:itali[sz]ation)?\b"
+    r"|\bmarket\s*cap(?:itali[sz]ation)?\b[\s\S]{0,80}?\b(?:india|indian)\b"
+    r"|\b(?:india|indian)\b[\s\S]{0,80}?\b(?:total|overall)\s+"
+    r"market\s*cap(?:itali[sz]ation)?\b",
+    re.IGNORECASE,
+)
+
 # v6 minimum-sufficient planning. These patterns only identify the *kind* of
 # evidence a question asks for. The model still chooses the exact tool; the
 # deterministic layer supplies a ceiling so it cannot keep searching after the
 # question has been answered.
 _TOOL_PLAN_PATTERNS = (
+    (
+        "get_india_market_cap_leaders_tool",
+        _INDIA_MCAP_RE,
+        "Indian market-cap leaders",
+    ),
     (
         "get_sec_filings_tool",
         re.compile(
@@ -199,6 +216,11 @@ _TICKER_STOPWORDS = {
 def wants_chart(query):
     """Return True when the user asks for a visual or diagram-style answer."""
     return bool(_CHART_RE.search(query or ""))
+
+
+def wants_india_market_cap(query):
+    """Return True when the question needs a ranked Indian market-cap snapshot."""
+    return bool(_INDIA_MCAP_RE.search(query or ""))
 
 
 def best_guess_symbol(query, failed_symbols=None):
@@ -375,6 +397,26 @@ def tool_plan(query):
             for name, label in matched
             if name != "get_sec_filings_tool"
         ]
+
+    # A market-cap ranking question often says "chart", but it does not ask for
+    # a price history. Drop the generic historical-price plan when a specific
+    # market-cap plan is present and no price-trend language was used.
+    if (
+        "get_india_market_cap_leaders_tool" in matched_names
+        and "get_historical_prices_tool" in matched_names
+        and not re.search(
+            r"\b(?:historical|price movement|ups and downs|price history|"
+            r"trends?|past|last|over)\b",
+            text,
+            re.IGNORECASE,
+        )
+    ):
+        matched = [
+            (name, label)
+            for name, label in matched
+            if name != "get_historical_prices_tool"
+        ]
+        matched_names = {name for name, _ in matched}
 
     comparison = bool(_COMPARISON_RE.search(text))
     if not matched:

@@ -5,6 +5,7 @@ read only from the environment; no credentials or private data are stored in
 source code. Web results are marked as discovery leads so guardrails can keep
 them subordinate to primary or structured sources.
 """
+import html
 import json
 import os
 import re
@@ -34,6 +35,19 @@ _YAHOO_RANGES = (
     (186, "6mo"),
     (366, "1y"),
 )
+
+# No-key market-cap snapshot. The page publishes both per-company market caps
+# and a category total, which lets a pie include an honest residual segment.
+_INDIA_MCAP_URL = (
+    "https://companiesmarketcap.com/india/largest-companies-in-india-by-market-cap/"
+)
+_INDIA_MCAP_HEADERS = {
+    "User-Agent": (
+        "Mozilla/5.0 (compatible; FinancialResearchAssistant/1.4; "
+        "research prototype)"
+    ),
+    "Accept": "text/html,application/xhtml+xml",
+}
 
 _DEFAULT_WEB_DOMAINS = (
     "sec.gov",
@@ -300,6 +314,138 @@ def get_free_historical_prices(symbol: str, days: int = 30):
         "period_low": min(lows),
         "period_high": max(highs),
         "prices": prices,
+    }
+
+
+def parse_india_market_cap_page(markup, limit=10):
+    """Parse company market caps and the category total from a saved page.
+
+    Keeping the parser separate from the fetch makes the normalization testable
+    without network access. The category total is read from the India stats bar,
+    not from the site-wide total in the global header.
+    """
+    try:
+        limit = max(1, min(int(limit or 10), 20))
+    except (TypeError, ValueError):
+        limit = 10
+
+    stats_match = re.search(
+        r'<div class="category-stats-bar">(.*?)</div>', markup, re.S | re.I
+    )
+    stats = stats_match.group(1) if stats_match else ""
+
+    total_match = re.search(
+        r"total\s+market\s+cap:\s*(?:<[^>]*>|\s)*\$\s*([\d,.]+)\s*([TBM])",
+        stats,
+        re.I,
+    )
+    if not total_match:
+        raise ValueError("The page did not publish an India category total market cap.")
+
+    multiplier = {"T": 1e12, "B": 1e9, "M": 1e6}[total_match.group(2).upper()]
+    total_market_cap = float(total_match.group(1).replace(",", "")) * multiplier
+    if total_market_cap <= 0:
+        raise ValueError("The published India category total market cap is invalid.")
+
+    count_match = re.search(
+        r'class="companies-count[^"]*"[^>]*>\s*([\d,]+)\s*</span>', stats, re.I
+    )
+    company_count = (
+        int(count_match.group(1).replace(",", "")) if count_match else None
+    )
+
+    def _plain(value):
+        text = re.sub(r"<[^>]+>", " ", str(value or ""))
+        return html.unescape(re.sub(r"\s+", " ", text)).strip()
+
+    rows = []
+    for row_markup in re.findall(r"<tr>(.*?)</tr>", markup, flags=re.S | re.I):
+        rank_match = re.search(
+            r'class="rank-td[^"]*"[^>]*>\s*(\d+)\s*</td>', row_markup, re.I
+        )
+        name_match = re.search(
+            r'class="company-name">(.*?)</div>', row_markup, re.S | re.I
+        )
+        code_match = re.search(
+            r'class="company-code">(.*?)</div>', row_markup, re.S | re.I
+        )
+        cap_match = re.search(
+            r'class="td-right"\s+data-sort="([\d.]+)"[^>]*>\s*'
+            r'<span class="currency-symbol-left">\$</span>\s*'
+            r'([\d.]+)\s*([BMT])',
+            row_markup,
+            re.I,
+        )
+        if not (rank_match and name_match and code_match and cap_match):
+            continue
+
+        market_cap = float(cap_match.group(1))
+        rows.append(
+            {
+                "rank": int(rank_match.group(1)),
+                "name": _plain(name_match.group(1)),
+                "source_symbol": _plain(code_match.group(1)),
+                "market_cap_usd": market_cap,
+                "market_cap_display": f"${cap_match.group(2)} {cap_match.group(3)}",
+                "share_of_total_pct": round(market_cap / total_market_cap * 100, 2),
+            }
+        )
+        if len(rows) >= limit:
+            break
+
+    if not rows:
+        raise ValueError("The page did not publish any usable company market caps.")
+
+    return {
+        "rows": rows,
+        "total_market_cap_usd": total_market_cap,
+        "company_count": company_count,
+    }
+
+
+def get_india_market_cap_leaders(limit: int = 10):
+    """Return ranked Indian company market caps and the published category total.
+
+    This is a key-free public snapshot. It is a company-level ranking, not a
+    tradable-stock screen, so the result says so explicitly.
+    """
+    try:
+        limit = max(1, min(int(limit or 10), 20))
+    except (TypeError, ValueError):
+        limit = 10
+
+    try:
+        request = Request(_INDIA_MCAP_URL, headers=_INDIA_MCAP_HEADERS)
+        with urlopen(request, timeout=_TIMEOUT) as response:
+            markup = response.read().decode("utf-8", errors="replace")
+        parsed = parse_india_market_cap_page(markup, limit)
+    except Exception as exc:
+        return _error("CompaniesMarketCap", exc, error_type="provider_error")
+
+    total = parsed["total_market_cap_usd"]
+    displayed = sum(row["market_cap_usd"] for row in parsed["rows"])
+    return {
+        "success": True,
+        "source": "CompaniesMarketCap",
+        "source_type": "market_snapshot",
+        "source_url": _INDIA_MCAP_URL,
+        "currency": "USD",
+        "retrieved_at": (
+            datetime.now(timezone.utc)
+            .isoformat(timespec="seconds")
+            .replace("+00:00", "Z")
+        ),
+        "scope": "Indian companies covered by the source category page",
+        "company_count": parsed["company_count"],
+        "total_market_cap_usd": total,
+        "displayed_market_cap_usd": displayed,
+        "remaining_market_cap_usd": max(0.0, total - displayed),
+        "share_basis": "company market cap / published India category total",
+        "rows": parsed["rows"],
+        "note": (
+            "Company-level market-cap ranking from a public source; symbols are "
+            "as published by the provider and this is not a tradable-stock screen."
+        ),
     }
 
 
@@ -898,6 +1044,7 @@ def source_status():
         "sec_edgar": True,
         "fred": bool(os.getenv("FRED_API_KEY")),
         "free_historical_prices": True,
+        "india_market_cap_snapshot": True,
         "web_search_provider": _web_provider(),
         "web_search_domains": list(_allowed_web_domains()),
     }

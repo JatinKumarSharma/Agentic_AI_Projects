@@ -210,6 +210,9 @@ def render_chart(
         "source_type": "derived_visualization",
         "retrieved_at": _retrieved_at(),
         "chart_type": requested,
+        # The web client consumes `type`; keep both keys so older cached
+        # specs and API clients that read `chart_type` still render correctly.
+        "type": requested,
         "title": resolved_title,
         "x_label": x_key,
         "y_label": y_key,

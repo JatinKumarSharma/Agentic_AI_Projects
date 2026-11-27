@@ -29,6 +29,7 @@ from financial_tools import (
 )
 from source_tools import (
     get_financial_statement,
+    get_india_market_cap_leaders,
     get_macro_indicator,
     get_sec_company_facts,
     get_sec_filings,
@@ -166,6 +167,19 @@ def search_financial_web_tool(query: str, limit: int = 5):
     return search_financial_web(query, limit)
 
 
+@tool
+def get_india_market_cap_leaders_tool(limit: int = 10):
+    """Get ranked Indian companies, their market caps and the category total.
+
+    Use this for top/largest Indian stocks or companies by market cap and for
+    questions about their contribution to the total Indian market cap. The
+    result includes the published total so a pie can show the residual as
+    "Other Indian companies" instead of implying the top names are the whole
+    market.
+    """
+    return get_india_market_cap_leaders(limit)
+
+
 tools = [
     search_stock_tool,
     get_profile_tool,
@@ -180,6 +194,7 @@ tools = [
     get_macro_indicator_tool,
     get_financial_statement_tool,
     search_financial_web_tool,
+    get_india_market_cap_leaders_tool,
 ]
 
 
@@ -259,11 +274,12 @@ RULES:
 14. When declining a request for ethical, privacy or fairness reasons,
     explain the reason in one sentence and offer a legitimate,
     data-grounded alternative. Never give a bare refusal.
-15. For historical prices, recent price movement, ups and downs, trends, or
-    chart-style requests, use get_historical_prices_tool and report its
-    period_change_pct directly. Do not recompute it. Visual formatting is
-    added deterministically after the tool result; never invent labels or
-    values.
+15. For historical prices, recent price movement, ups and downs, or trend
+    charts, use get_historical_prices_tool and report its period_change_pct
+    directly. For top/largest Indian companies, market-cap rankings, or their
+    contribution to the Indian market total, use
+    get_india_market_cap_leaders_tool. Visual formatting is added
+    deterministically after the tool result; never invent labels or values.
 16. If no tool can provide the requested data, say so in one sentence and
     list what you can provide. Do not keep calling tools for the same
     missing data.
@@ -292,6 +308,10 @@ RULES:
     the relevant data tool, then report the provider's actual response.
  27. Do not call a chart rendering tool. Charts are created deterministically
     from successful data-tool results after the answer is produced.
+   28. Once get_india_market_cap_leaders_tool succeeds, do not call other tools.
+    Use its rows and published total only. A market-cap pie must include an
+    "Other Indian companies" segment calculated from that total minus the
+    displayed rows, so the shares add up to the source total.
 
 When a tool returns an error, use the tool's error_type and message to
 explain the limitation accurately.
@@ -367,6 +387,71 @@ def _fallback_call(plan, query, failed_symbols):
     return None
 
 
+def _usd_short(value):
+    """Format a USD value without introducing any number not in the tool result."""
+    try:
+        number = float(value)
+    except (TypeError, ValueError):
+        return "—"
+    for scale, suffix in ((1e12, "T"), (1e9, "B"), (1e6, "M")):
+        if abs(number) >= scale:
+            return f"${number / scale:.2f}{suffix}"
+    return f"${number:,.0f}"
+
+
+def _market_cap_answer(result):
+    """Deterministically summarize a successful market-cap snapshot."""
+    rows = result.get("rows") or []
+    total = float(result.get("total_market_cap_usd") or 0)
+    displayed = sum(float(row.get("market_cap_usd") or 0) for row in rows)
+    remaining = max(0.0, total - displayed)
+    company_count = result.get("company_count")
+    universe = (
+        f"{company_count} companies"
+        if company_count
+        else "the source's India category"
+    )
+
+    lines = [
+        (
+            f"Using {result.get('source')} data retrieved "
+            f"{result.get('retrieved_at')}, these are the largest Indian "
+            "companies in its coverage by market cap:"
+        ),
+        "",
+        "| Rank | Company | Market cap (USD) | Share of category total |",
+        "|---:|---|---:|---:|",
+    ]
+    for row in rows:
+        lines.append(
+            f"| {row.get('rank')} | {row.get('name')} | "
+            f"{_usd_short(row.get('market_cap_usd'))} | "
+            f"{float(row.get('share_of_total_pct') or 0):.2f}% |"
+        )
+
+    top_share = (displayed / total * 100) if total else 0
+    other_share = (remaining / total * 100) if total else 0
+    lines.extend(
+        [
+            "",
+            (
+                f"The displayed companies account for {top_share:.1f}% of the "
+                f"published India market-cap total ({_usd_short(total)}) across "
+                f"{universe}. The remaining {other_share:.1f}% is shown as "
+                "'Other Indian companies' so the pie represents the published "
+                "total."
+            ),
+            (
+                "The source is a company-level market-cap ranking, not a "
+                "tradable-stock recommendation; symbols are reproduced as the "
+                "provider publishes them."
+            ),
+            f"Source: {result.get('source_url')}",
+        ]
+    )
+    return "\n".join(lines)
+
+
 def _charts_for_query(tool_calls, query):
     """Build a chart only from successful tool data when a chart was requested."""
     if not wants_chart(query):
@@ -377,6 +462,41 @@ def _charts_for_query(tool_calls, query):
             continue
         if result.get("source") == "Chart renderer" and result.get("chart_type"):
             return [result]
+
+        if (
+            result.get("source") == "CompaniesMarketCap"
+            and result.get("rows")
+            and result.get("total_market_cap_usd")
+        ):
+            rows = result["rows"]
+            labels = [
+                str(row.get("name") or row.get("source_symbol") or f"Rank {index + 1}")
+                for index, row in enumerate(rows)
+            ]
+            values = [row.get("market_cap_usd") for row in rows]
+            total = float(result["total_market_cap_usd"])
+            remaining = total - sum(float(value or 0) for value in values)
+            if remaining > 0:
+                labels.append("Other Indian companies")
+                values.append(remaining)
+            chart_type = (
+                "pie"
+                if re.search(r"\bpie\b", query, re.IGNORECASE)
+                or not re.search(r"\bbar\b", query, re.IGNORECASE)
+                else "bar"
+            )
+            chart = render_chart(
+                {"labels": labels, "values": values},
+                chart_type=chart_type,
+                title="Share of Indian market capitalisation",
+                x_key="company",
+                y_key="market_cap_usd",
+            )
+            if chart.get("success"):
+                chart["source_url"] = result.get("source_url")
+                chart["share_basis"] = result.get("share_basis")
+                return [chart]
+
         if "prices" not in result and "observations" not in result:
             continue
         if re.search(r"\bpie\b", query, re.IGNORECASE):
@@ -441,6 +561,7 @@ def execute(query: str, return_trace: bool = False):
     seen_calls = set()
     failed_symbols = []
     search_failed = False
+    conclusion_forced = False
 
     for _ in range(max_iterations):
 
@@ -448,12 +569,33 @@ def execute(query: str, return_trace: bool = False):
 
         messages.append(response)
 
+        # Once the budget or a repeated call has fired, the next turn is a
+        # plain-text conclusion. Calling the unbound model here prevents a
+        # stubborn tool-calling response from consuming the remaining loops.
+        if conclusion_forced and response.tool_calls:
+            messages.append(
+                SystemMessage(
+                    content="Answer now in plain text from the retrieved results. "
+                    "No further tools are available."
+                )
+            )
+            response = llm.invoke(messages)
+            messages.append(response)
+
         # The model has finished answering. Deterministic guardrails run on
         # the final text regardless of what the model was instructed to do.
         if not response.tool_calls:
             answer = normalize_response(response.content).strip()
             if not answer:
                 answer = iteration_fallback(tool_results)
+            return _finish(
+                apply_guardrails(answer, tool_results, query),
+                tool_calls,
+                tool_results,
+            )
+
+        if conclusion_forced:
+            answer = iteration_fallback(tool_results)
             return _finish(
                 apply_guardrails(answer, tool_results, query),
                 tool_calls,
@@ -535,6 +677,21 @@ def execute(query: str, return_trace: bool = False):
             tool_calls.append(trace_entry)
             tool_results.append(tool_result)
 
+            # The market-cap snapshot is the complete evidence for ranking and
+            # share-of-total questions. Finish deterministically instead of
+            # spending more LLM turns after the data has already arrived.
+            if (
+                tool_name == "get_india_market_cap_leaders_tool"
+                and isinstance(tool_result, dict)
+                and tool_result.get("success") is True
+            ):
+                answer = _market_cap_answer(tool_result)
+                return _finish(
+                    apply_guardrails(answer, tool_results, query),
+                    tool_calls,
+                    tool_results,
+                )
+
             messages.append(
                 ToolMessage(
                     content=str(tool_result),
@@ -574,6 +731,7 @@ def execute(query: str, return_trace: bool = False):
                 "the limitation."
             )
             messages.append(SystemMessage(content=note))
+            conclusion_forced = True
 
     answer = apply_guardrails(iteration_fallback(tool_results), tool_results, query)
     return _finish(answer, tool_calls, tool_results)
