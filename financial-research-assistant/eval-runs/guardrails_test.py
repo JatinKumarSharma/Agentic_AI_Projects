@@ -274,6 +274,20 @@ check(
         [{"success": False, "error_type": "repeated_search_blocked"}]
     ),
 )
+failed_answer = apply_guardrails(
+    "I couldn't retrieve the data because of the tool-call ceiling.",
+    [
+        {"success": False, "error_type": "no_results"},
+        {"success": False, "error_type": "subscription_restricted"},
+        {"success": False, "error_type": "tool_budget_reached"},
+    ],
+)
+check(
+    "failed results report the provider restriction, not just the ceiling",
+    "restricts the requested symbol" in failed_answer
+    and "tool-call ceiling" not in failed_answer,
+    failed_answer[:140],
+)
 
 # 10. Web-source attribution is deterministic.
 web_result = {
