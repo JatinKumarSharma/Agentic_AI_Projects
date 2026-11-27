@@ -31,7 +31,7 @@ app = FastAPI(
         "An agentic AI research assistant compatible with Groq, OpenAI, "
         "Google Gemini and Ollama models."
     ),
-    version="1.2.2",
+    version="1.3.0",
 )
 
 # Restrict browser access to the configured frontend origins. Add deployed UI
@@ -70,21 +70,26 @@ def _active_model():
 def ask_financial_question(request: Question):
 
     try:
+        # Always run in trace mode internally so deterministic chart specs can
+        # be returned to the web UI. The normal response stays intentionally
+        # small; only include_trace exposes the full evaluation evidence.
+        trace = execute(request.question, return_trace=True)
+        charts = trace.get("charts", [])
+
         if request.include_trace:
-            trace = execute(request.question, return_trace=True)
             return {
                 "question": request.question,
                 "answer": trace["answer"],
                 "tool_calls": trace["tool_calls"],
                 "sources": trace["sources"],
                 "max_tool_calls": trace["max_tool_calls"],
+                "charts": charts,
             }
-
-        answer = execute(request.question)
 
         return {
             "question": request.question,
-            "answer": answer
+            "answer": trace["answer"],
+            "charts": charts,
         }
 
     except Exception as e:
@@ -107,7 +112,7 @@ def health():
     return {
         "status": "healthy",
         "service": "financial-analyst-api",
-        "version": "1.2.2"
+        "version": "1.3.0"
     }
 
 
@@ -117,7 +122,7 @@ def version():
     provider, model = _active_model()
     status = source_status()
     return {
-        "service_version": "1.2.2",
+        "service_version": "1.3.0",
         "git_commit": os.getenv("RENDER_GIT_COMMIT"),
         "guardrails_loaded": "guardrails" in sys.modules,
         "source_tools_loaded": "source_tools" in sys.modules,

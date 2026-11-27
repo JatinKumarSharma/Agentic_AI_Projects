@@ -70,6 +70,15 @@ _FINANCE_RE = re.compile(
 # caused the model to recompute from the wrong denominator.
 _PCT_TOLERANCE = 0.02  # final answers are rounded to two decimal places
 
+# Presentation requests are a separate, deterministic evidence need. They do
+# not replace the data tool; they add a rendering step after data is retrieved.
+_CHART_RE = re.compile(
+    r"\b(?:diagram|diagrams|graph|graphs|chart|charts|pie(?:\s+chart)?|"
+    r"bar(?:\s+chart)?|line(?:\s+chart)?|plot|sparkline|"
+    r"visuali[sz]e|visuali[sz]ation|visuali[sz]ed)\b",
+    re.IGNORECASE,
+)
+
 # v6 minimum-sufficient planning. These patterns only identify the *kind* of
 # evidence a question asks for. The model still chooses the exact tool; the
 # deterministic layer supplies a ceiling so it cannot keep searching after the
@@ -130,6 +139,11 @@ _TOOL_PLAN_PATTERNS = (
         "historical prices",
     ),
     (
+        "render_chart_tool",
+        _CHART_RE,
+        "chart rendering",
+    ),
+    (
         "get_consensus_tool",
         re.compile(
             r"\b(?:analyst|consensus|price target|ratings?)\b",
@@ -168,6 +182,45 @@ _TOOL_PLAN_PATTERNS = (
 _COMPARISON_RE = re.compile(
     r"\b(?:vs|versus|compare|comparison|between)\b", re.IGNORECASE
 )
+
+# Best-effort symbol normalization for names the configured market-data
+# provider does not resolve through its search endpoint. The fallback still
+# goes through the real data tool, so a provider limitation is reported
+# honestly instead of being replaced by internal knowledge.
+_COMPANY_SYMBOL_HINTS = (
+    ("tata steel", "TATASTEEL.NS"),
+    ("reliance industries", "RELIANCE.NS"),
+    ("infosys", "INFY.NS"),
+    ("hdfc bank", "HDFCBANK.NS"),
+    ("icici bank", "ICICIBANK.NS"),
+    ("state bank of india", "SBIN.NS"),
+)
+_TICKER_RE = re.compile(r"\b[A-Z][A-Z0-9]{1,9}(?:\.[A-Z]{1,4})?\b")
+_TICKER_STOPWORDS = {
+    "SEC", "FRED", "USD", "INR", "CEO", "CFO", "IPO", "GDP", "CPI", "US", "UK",
+}
+
+
+def wants_chart(query):
+    """Return True when the user asks for a visual or diagram-style answer."""
+    return bool(_CHART_RE.search(query or ""))
+
+
+def best_guess_symbol(query, failed_symbols=None):
+    """Return a deterministic fallback symbol from the question or failed search."""
+    text = str(query or "")
+    lowered = text.lower()
+    for phrase, symbol in _COMPANY_SYMBOL_HINTS:
+        if phrase in lowered:
+            return symbol
+    for match in _TICKER_RE.findall(text):
+        candidate = match.strip().upper()
+        if candidate not in _TICKER_STOPWORDS:
+            return candidate
+    for symbol in reversed(list(failed_symbols or [])):
+        if symbol:
+            return str(symbol).upper()
+    return None
 
 
 def normalize_quote_record(record):
@@ -439,6 +492,11 @@ def iteration_fallback(tool_results):
             break
         if error_type == "no_results":
             messages.append("the source returned no matching records")
+            break
+        if error_type == "repeated_search_blocked":
+            messages.append(
+                "repeated ticker searches are disabled after the first failure"
+            )
             break
         if error_type == "provider_error":
             messages.append("the data provider returned an error")

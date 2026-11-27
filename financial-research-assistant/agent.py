@@ -1,5 +1,6 @@
 import json
 import os
+import re
 from dotenv import load_dotenv
 
 load_dotenv()
@@ -35,11 +36,14 @@ from source_tools import (
 )
 from guardrails import (
     apply_guardrails,
+    best_guess_symbol,
     iteration_fallback,
     pre_query_guardrail,
     sources_from_results,
     tool_plan,
+    wants_chart,
 )
+from visualization import render_chart
 
 
 @tool
@@ -160,6 +164,23 @@ def search_financial_web_tool(query: str, limit: int = 5):
     return search_financial_web(query, limit)
 
 
+@tool
+def render_chart_tool(
+    data: dict,
+    chart_type: str = "line",
+    title: str = "",
+    x_key: str = "date",
+    y_key: str = "close",
+):
+    """Render data already returned by another tool as a chart specification.
+
+    Supported types: line, bar, pie, table. Never pass invented numbers: only
+    pass a result that a data tool actually returned. Pie charts require
+    non-negative values with a positive total.
+    """
+    return render_chart(data, chart_type, title, x_key, y_key)
+
+
 tools = [
     search_stock_tool,
     get_profile_tool,
@@ -174,6 +195,7 @@ tools = [
     get_macro_indicator_tool,
     get_financial_statement_tool,
     search_financial_web_tool,
+    render_chart_tool,
 ]
 
 
@@ -255,7 +277,9 @@ RULES:
     data-grounded alternative. Never give a bare refusal.
 15. For historical prices, recent price movement, ups and downs, trends, or
     chart-style requests, use get_historical_prices_tool and report its
-    period_change_pct directly. Do not recompute it.
+    period_change_pct directly. Do not recompute it. For a graph, diagram,
+    pie chart, or visual format, use render_chart_tool only with data that a
+    data tool already returned. Never invent labels or values.
 16. If no tool can provide the requested data, say so in one sentence and
     list what you can provide. Do not keep calling tools for the same
     missing data.
@@ -280,6 +304,8 @@ RULES:
     configured for this deployment. Do not substitute internal knowledge.
 25. Respect the tool-call ceiling supplied in the plan message. If it is
     reached, answer with the evidence already retrieved or state the gap.
+26. Do not repeat a failed ticker search. Use the most likely symbol once with
+    the relevant data tool, then report the provider's actual response.
 
 When a tool returns an error, use the tool's error_type and message to
 explain the limitation accurately.
@@ -312,13 +338,82 @@ def normalize_response(content):
 
     return str(content)
 
-def _trace_payload(answer, tool_calls, tool_results, plan):
+def _trace_payload(answer, tool_calls, tool_results, plan, charts=None):
     return {
         "answer": answer,
         "tool_calls": tool_calls,
         "sources": sources_from_results(tool_results),
         "max_tool_calls": plan["max_calls"],
+        "charts": charts or [],
     }
+
+
+_SYMBOL_TOOLS = {
+    "get_historical_prices_tool",
+    "get_quote_tool",
+    "get_performance_tool",
+    "get_profile_tool",
+    "get_peers_tool",
+    "get_consensus_tool",
+    "get_company_news_tool",
+    "get_financial_statement_tool",
+    "get_sec_filings_tool",
+    "get_sec_company_facts_tool",
+}
+
+
+def _fallback_call(plan, query, failed_symbols):
+    """Deterministically replace a second ticker search with a data tool."""
+    symbol = best_guess_symbol(query, failed_symbols)
+    if not symbol:
+        return None
+    for name in plan.get("tools") or []:
+        if name not in _SYMBOL_TOOLS:
+            continue
+        args = {"symbol": symbol}
+        if name == "get_historical_prices_tool":
+            args["days"] = 30
+        elif name == "get_sec_filings_tool":
+            args["form"] = "ALL"
+        elif name == "get_financial_statement_tool":
+            args["statement"] = "income"
+        return name, args
+    return None
+
+
+def _charts_for_query(tool_calls, query):
+    """Build a chart only from successful tool data when a chart was requested."""
+    if not wants_chart(query):
+        return []
+    for call in tool_calls or []:
+        result = call.get("result")
+        if not isinstance(result, dict) or result.get("success") is not True:
+            continue
+        if result.get("source") == "Chart renderer" and result.get("chart_type"):
+            return [result]
+        if "prices" not in result and "observations" not in result:
+            continue
+        if re.search(r"\bpie\b", query, re.IGNORECASE):
+            chart_type = "pie"
+        elif re.search(r"\bbar\b", query, re.IGNORECASE):
+            chart_type = "bar"
+        else:
+            chart_type = "line"
+        chart = render_chart(
+            result,
+            chart_type=chart_type,
+            title="Retrieved price history",
+        )
+        if chart.get("success"):
+            return [chart]
+    return []
+
+
+def _append_chart_text(answer, chart):
+    ascii_text = str(chart.get("ascii") or "").strip()
+    if ascii_text and ascii_text not in answer:
+        return answer.rstrip() + "\n\nText chart from the returned data:\n" + ascii_text
+    return answer
 
 
 def execute(query: str, return_trace: bool = False):
@@ -328,17 +423,24 @@ def execute(query: str, return_trace: bool = False):
     The deterministic plan supplies a tool-call ceiling derived from the
     question. It is a ceiling, not a router: the model still selects the exact
     tools, but it cannot keep searching after the evidence is sufficient.
+    A failed ticker search is deterministically replaced by the planned data
+    tool so the model cannot spend the whole budget on symbol guessing.
     """
     plan = tool_plan(query)
+
+    def _finish(answer, calls, results):
+        charts = _charts_for_query(calls, query)
+        if charts:
+            answer = _append_chart_text(answer, charts[0])
+        if return_trace:
+            return _trace_payload(answer, calls, results, plan, charts)
+        return answer
 
     # Capability and scope boundaries are deterministic. They do not depend on
     # the model remembering a prompt rule.
     early_answer = pre_query_guardrail(query)
     if early_answer:
-        answer = apply_guardrails(early_answer, [])
-        if return_trace:
-            return _trace_payload(answer, [], [], plan)
-        return answer
+        return _finish(apply_guardrails(early_answer, []), [], [])
 
     messages = [
         SystemMessage(content=SYSTEM_PROMPT),
@@ -351,6 +453,8 @@ def execute(query: str, return_trace: bool = False):
     tool_results = []
     tool_calls = []
     seen_calls = set()
+    failed_symbols = []
+    search_failed = False
 
     for _ in range(max_iterations):
 
@@ -364,10 +468,7 @@ def execute(query: str, return_trace: bool = False):
             answer = normalize_response(response.content).strip()
             if not answer:
                 answer = iteration_fallback(tool_results)
-            answer = apply_guardrails(answer, tool_results)
-            if return_trace:
-                return _trace_payload(answer, tool_calls, tool_results, plan)
-            return answer
+            return _finish(apply_guardrails(answer, tool_results), tool_calls, tool_results)
 
         repeated = False
         budget_hit = len(tool_results) >= max_tool_calls
@@ -375,8 +476,32 @@ def execute(query: str, return_trace: bool = False):
         # Execute only tools that still fit the deterministic call ceiling.
         for tool_call in response.tool_calls:
 
-            tool_name = tool_call["name"]
+            original_name = tool_call["name"]
+            tool_name = original_name
             tool_args = tool_call["args"]
+            replaced_search = False
+            skip_tool = False
+            tool_result = None
+
+            # The model is not trusted to obey "do not search twice". After
+            # one failed symbol search, use the planned data tool with the
+            # best deterministic symbol guess instead.
+            if tool_name == "search_stock_tool" and search_failed:
+                fallback = _fallback_call(plan, query, failed_symbols)
+                if fallback:
+                    tool_name, tool_args = fallback
+                    replaced_search = True
+                else:
+                    tool_result = {
+                        "success": False,
+                        "error_type": "repeated_search_blocked",
+                        "message": (
+                            "A ticker search already failed. Repeated searches "
+                            "are disabled for this question."
+                        ),
+                    }
+                    skip_tool = True
+
             signature = (tool_name, json.dumps(tool_args, sort_keys=True, default=str))
             if signature in seen_calls:
                 repeated = True
@@ -391,7 +516,7 @@ def execute(query: str, return_trace: bool = False):
                         "for this question."
                     ),
                 }
-            else:
+            elif not skip_tool:
                 selected_tool = tool_map.get(tool_name)
 
                 if selected_tool is None:
@@ -410,9 +535,14 @@ def execute(query: str, return_trace: bool = False):
                             "message": str(e),
                         }
 
-            tool_calls.append(
-                {"name": tool_name, "args": tool_args, "result": tool_result}
-            )
+            trace_entry = {
+                "name": tool_name,
+                "args": tool_args,
+                "result": tool_result,
+            }
+            if replaced_search:
+                trace_entry["replaced_failed_search"] = original_name
+            tool_calls.append(trace_entry)
             tool_results.append(tool_result)
 
             messages.append(
@@ -421,6 +551,24 @@ def execute(query: str, return_trace: bool = False):
                     tool_call_id=tool_call["id"],
                 )
             )
+
+            if (
+                tool_name == "search_stock_tool"
+                and isinstance(tool_result, dict)
+                and tool_result.get("success") is not True
+                and not budget_hit
+            ):
+                search_failed = True
+                failed_symbols.append(str(tool_args.get("symbol") or ""))
+                messages.append(
+                    SystemMessage(
+                        content=(
+                            "Ticker search returned no results. Do not repeat it. "
+                            "Use the planned data tool once with the most likely "
+                            "symbol, then report the provider's actual response."
+                        )
+                    )
+                )
 
         # A repeated call or an exhausted budget is a deterministic stop
         # signal. Force the next model turn to conclude instead of looping.
@@ -438,6 +586,4 @@ def execute(query: str, return_trace: bool = False):
             messages.append(SystemMessage(content=note))
 
     answer = apply_guardrails(iteration_fallback(tool_results), tool_results)
-    if return_trace:
-        return _trace_payload(answer, tool_calls, tool_results, plan)
-    return answer
+    return _finish(answer, tool_calls, tool_results)
