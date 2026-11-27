@@ -8,6 +8,7 @@ the exact normalization paths used by the real adapters.
 """
 import os
 import sys
+from datetime import datetime, timezone
 from pathlib import Path
 from unittest.mock import patch
 
@@ -401,8 +402,65 @@ check(
     "source status exposes booleans and provider names only",
     status["sec_edgar"] is True
     and status["fred"] is True
+    and status["free_historical_prices"] is True
     and status["web_search_provider"] == "tavily"
     and all("dummy-for-test" not in str(value) for value in status.values()),
+)
+
+# 10. No-key historical-price fallback uses a public chart endpoint.
+def _unix_day(day):
+    return int(datetime(2026, 11, day, tzinfo=timezone.utc).timestamp())
+
+
+yahoo_payload = {
+    "chart": {
+        "error": None,
+        "result": [
+            {
+                "meta": {
+                    "symbol": "TATASTEEL.NS",
+                    "currency": "INR",
+                    "fullExchangeName": "NNS",
+                },
+                "timestamp": [_unix_day(20), _unix_day(23), _unix_day(24), _unix_day(25)],
+                "indicators": {
+                    "quote": [
+                        {
+                            "open": [169.0, 171.0, 170.5, 172.0],
+                            "high": [171.0, 173.0, 172.0, 175.0],
+                            "low": [168.0, 170.0, 169.5, 171.5],
+                            "close": [170.0, 172.0, 171.0, 174.0],
+                            "volume": [1000, 1100, 900, 1200],
+                        }
+                    ]
+                },
+            }
+        ],
+    }
+}
+with patch.object(source_tools, "_request_json", return_value=yahoo_payload):
+    free_prices = source_tools.get_free_historical_prices("TATASTEEL.NS", 30)
+check(
+    "free historical prices normalize public chart data",
+    free_prices["success"] is True
+    and free_prices["source"] == "Yahoo Finance"
+    and free_prices["observations"] == 4
+    and free_prices["period_change_pct"] == 2.35,
+)
+check(
+    "free historical source is explicitly key-free",
+    free_prices["requires_key"] is False
+    and free_prices["free_source"] is True
+    and "query1.finance.yahoo.com/v8/finance/chart/" in free_prices["source_url"]
+    and "range=1mo" in free_prices["source_url"],
+)
+with patch.object(source_tools, "_request_json", side_effect=RuntimeError("HTTP 404")):
+    free_failure = source_tools.get_free_historical_prices("NOPE", 30)
+check(
+    "public chart failures are explicit and never claim credentials",
+    free_failure["success"] is False
+    and free_failure["error_type"] == "provider_error"
+    and "NOPE" in free_failure["symbol"],
 )
 
 failed = [name for name, passed, _ in results if not passed]
