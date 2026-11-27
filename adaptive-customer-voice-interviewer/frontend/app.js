@@ -94,6 +94,8 @@ const state = {
 
     // Automatic voice activity detection (VAD)
     automaticRecording: false,
+    acknowledgementTimingRecorded: false,
+    lastLocalAcknowledgement: null,
     questionPlaybackActive: false,
     systemAudioEndedAt: 0,
     autoVadArmed: false,
@@ -439,7 +441,7 @@ function waitForVoiceFeedback() {
 
 async function waitForResponseResult() {
     const maxAttempts = 240;
-    const pollingInterval = 500;
+    const pollingInterval = 250;
 
     for (let attempt = 0; attempt < maxAttempts; attempt++) {
 
@@ -1436,6 +1438,21 @@ function browserSpeechSttEnabled() {
     return provider === "browser" || provider === "browser_speech";
 }
 
+const LOCAL_ACKNOWLEDGEMENTS = ["Got it.", "I see.", "Okay."];
+
+function shouldPlayLocalAcknowledgement(speechDurationMs) {
+    return Number(speechDurationMs) >= 6000;
+}
+
+function pickLocalAcknowledgement() {
+    const previous = state.lastLocalAcknowledgement;
+    const choices = LOCAL_ACKNOWLEDGEMENTS.filter(item => item !== previous);
+    const pool = choices.length ? choices : LOCAL_ACKNOWLEDGEMENTS;
+    const selected = pool[Math.floor(Math.random() * pool.length)];
+    state.lastLocalAcknowledgement = selected;
+    return selected;
+}
+
 function streamingSttEnabled() {
     return ["sarvam", "local"].includes(voiceSttProvider());
 }
@@ -1905,6 +1922,15 @@ async function startBrowserSpeechRecording(automatic = false) {
         elements.interviewStatus.textContent = "PROCESSING";
         addActivity("RESPONSE", transcript, "response");
         markResponseTurnStarted("voice");
+
+        if (shouldPlayLocalAcknowledgement(state.speechDurationMs)) {
+            markAcknowledgementRendered();
+            enqueueVoiceFeedback(
+                pickLocalAcknowledgement(),
+                "acknowledgement",
+                voiceDelivery("acknowledgement")
+            );
+        }
 
         setBusy(true);
         try {

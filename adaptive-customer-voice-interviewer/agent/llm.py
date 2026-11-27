@@ -249,11 +249,19 @@ def _structured_method(provider: str) -> str:
     return "function_calling" if provider == "groq" else "json_schema"
 
 
-def get_llm(model: str | None = None, *, purpose: str = "default"):
+def get_llm(
+    model: str | None = None,
+    *,
+    purpose: str = "default",
+    max_tokens: int | None = None,
+):
     """Return the configured chat model for a research purpose."""
 
     provider = _llm_provider()
     temperature = _temperature_for(purpose)
+    output_limit = (
+        _output_token_limit() if max_tokens is None else max(1, int(max_tokens))
+    )
 
     if provider == "groq":
         from langchain_groq import ChatGroq
@@ -273,7 +281,7 @@ def get_llm(model: str | None = None, *, purpose: str = "default"):
             model=model_name,
             temperature=temperature,
             # Keep every request under the deployed tier's output ceiling.
-            max_tokens=_output_token_limit(),
+            max_tokens=output_limit,
             # Nested SDK retries can honour multi-minute Retry-After headers.
             # A live interview fails fast and uses the bounded application
             # retry policy instead.
@@ -298,7 +306,7 @@ def get_llm(model: str | None = None, *, purpose: str = "default"):
         return ChatOllama(
             model=model_name,
             temperature=temperature,
-            num_predict=999,
+            num_predict=output_limit,
             # Reasoning models such as gpt-oss otherwise consume the output
             # budget with thinking tokens and can return empty structured
             # content. The interview engine needs schema-valid JSON quickly.

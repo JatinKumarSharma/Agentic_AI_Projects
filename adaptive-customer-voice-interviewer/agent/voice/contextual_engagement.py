@@ -1,7 +1,15 @@
 
 import json
+import logging
+from concurrent.futures import ThreadPoolExecutor, TimeoutError as FuturesTimeoutError
 
 from agent.llm import get_llm, invoke_with_rate_limit_retry
+
+logger = logging.getLogger(__name__)
+_ENGAGEMENT_EXECUTOR = ThreadPoolExecutor(
+    max_workers=2,
+    thread_name_prefix="cvi-engagement",
+)
 
 
 def generate_contextual_engagement(
@@ -18,7 +26,7 @@ def generate_contextual_engagement(
     if not isinstance(decomposition, dict) or not decomposition:
         return ""
 
-    llm = get_llm(purpose="engagement")
+    llm = get_llm(purpose="engagement", max_tokens=40)
 
     prompt = f"""
 You are the conversational engagement component of a
@@ -55,7 +63,17 @@ ANSWER DECOMPOSITION:
 Spoken response:
 """
 
-    result = invoke_with_rate_limit_retry(llm, prompt)
+    try:
+        future = _ENGAGEMENT_EXECUTOR.submit(
+            invoke_with_rate_limit_retry, llm, prompt
+        )
+        result = future.result(timeout=2.0)
+    except FuturesTimeoutError:
+        logger.info("contextual_engagement_timeout")
+        return ""
+    except Exception:
+        logger.exception("contextual_engagement_generation_error")
+        return ""
 
     content = result.content
 
