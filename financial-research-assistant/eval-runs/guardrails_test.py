@@ -200,18 +200,17 @@ check(
     f"max={open_plan['max_calls']}",
 )
 
-# 9b. Chart requests add a rendering need without inventing a data source.
+# 9b. Chart requests plan only the data tool; rendering is deterministic.
 chart_question = (
     "Present the past one month ups and downs of a tata steel share prices "
     "in a diagram format."
 )
 chart_plan = tool_plan(chart_question)
 check(
-    "chart question gets data tool plus renderer and a wider ceiling",
-    "get_historical_prices_tool" in chart_plan["tools"]
-    and "render_chart_tool" in chart_plan["tools"]
-    and chart_plan["max_calls"] == 3,
-    f"max={chart_plan['max_calls']}",
+    "chart question plans only the data tool",
+    chart_plan["tools"] == ["get_historical_prices_tool"]
+    and chart_plan["max_calls"] == 2,
+    f"tools={chart_plan['tools']} max={chart_plan['max_calls']}",
 )
 check(
     "diagram wording is recognized as a chart request",
