@@ -1,13 +1,11 @@
 import random
 
 
+# Keep acknowledgements short and neutral so they fit most participant answers.
 ACKNOWLEDGEMENTS = (
-    "I see.",
     "Got it.",
-    "Right, go on.",
-    "That makes sense.",
-    "Thanks for that.",
-    "I'm with you.",
+    "I see.",
+    "Okay.",
 )
 
 
